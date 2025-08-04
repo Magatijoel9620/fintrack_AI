@@ -126,7 +126,7 @@ export default function FinTrackApp() {
       </Sidebar>
       <SidebarInset>
         <AppHeader activeView={activeView} />
-        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto bg-muted/40">
           {renderView()}
         </main>
       </SidebarInset>
