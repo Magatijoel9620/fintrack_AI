@@ -1,1 +1,5 @@
-// Flows will be imported for their side effects in this file.
+import { config } from 'dotenv';
+config();
+
+import '@/ai/flows/automatic-receipt-scanning.ts';
+import '@/ai/flows/analyze-spending-habits.ts';
