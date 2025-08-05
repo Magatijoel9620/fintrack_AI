@@ -16,12 +16,14 @@ const initialExpenses: Expense[] = [
 interface AppContextType {
   expenses: Expense[];
   addExpense: (expense: Omit<Expense, "id">) => void;
+  updateExpense: (expense: Expense) => void;
+  deleteExpense: (id: string) => void;
   budget: number;
   setBudget: (amount: number) => void;
   openAddExpense: boolean;
   setOpenAddExpense: (open: boolean) => void;
-  expenseToAdd: Omit<Expense, "id"> | null;
-  setExpenseToAdd: (expense: Omit<Expense, "id"> | null) => void;
+  expenseToEdit: Expense | null;
+  setExpenseToEdit: (expense: Expense | null) => void;
   openScanReceipt: boolean;
   setOpenScanReceipt: (open: boolean) => void;
 }
@@ -29,12 +31,14 @@ interface AppContextType {
 export const AppContext = createContext<AppContextType>({
   expenses: [],
   addExpense: () => {},
+  updateExpense: () => {},
+  deleteExpense: () => {},
   budget: 1000,
   setBudget: () => {},
   openAddExpense: false,
   setOpenAddExpense: () => {},
-  expenseToAdd: null,
-  setExpenseToAdd: () => {},
+  expenseToEdit: null,
+  setExpenseToEdit: () => {},
   openScanReceipt: false,
   setOpenScanReceipt: () => {},
 });
@@ -45,7 +49,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [budget, setBudget] = useLocalStorage<number>("budget", 2000);
   const [openAddExpense, setOpenAddExpense] = useState(false);
   const [openScanReceipt, setOpenScanReceipt] = useState(false);
-  const [expenseToAdd, setExpenseToAdd] = useState<Omit<Expense, "id"> | null>(null);
+  const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
 
   const addExpense = (expense: Omit<Expense, "id">) => {
     const newExpense = { ...expense, id: new Date().toISOString() };
@@ -55,18 +59,37 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       description: `${expense.merchant}: $${expense.amount.toFixed(2)}`,
     });
   };
+  
+  const updateExpense = (updatedExpense: Expense) => {
+    setExpenses(prevExpenses => prevExpenses.map(expense => expense.id === updatedExpense.id ? updatedExpense : expense));
+    toast({
+      title: "Expense Updated",
+      description: `${updatedExpense.merchant}: $${updatedExpense.amount.toFixed(2)}`,
+    });
+  };
+
+  const deleteExpense = (id: string) => {
+    setExpenses(prevExpenses => prevExpenses.filter(expense => expense.id !== id));
+    toast({
+      variant: "destructive",
+      title: "Expense Deleted",
+      description: `The expense has been successfully deleted.`,
+    });
+  };
 
   return (
     <AppContext.Provider
       value={{
         expenses,
         addExpense,
+        updateExpense,
+        deleteExpense,
         budget,
         setBudget,
         openAddExpense,
         setOpenAddExpense,
-        expenseToAdd,
-        setExpenseToAdd,
+        expenseToEdit,
+        setExpenseToEdit,
         openScanReceipt,
         setOpenScanReceipt,
       }}

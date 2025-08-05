@@ -54,46 +54,47 @@ const categories = [
 ];
 
 export function AddExpenseModal() {
-  const { openAddExpense, setOpenAddExpense, addExpense, expenseToAdd, setExpenseToAdd } = useContext(AppContext);
+  const { openAddExpense, setOpenAddExpense, addExpense, updateExpense, expenseToEdit, setExpenseToEdit } = useContext(AppContext);
 
   const form = useForm<z.infer<typeof expenseSchema>>({
     resolver: zodResolver(expenseSchema),
-    defaultValues: {
-      amount: 0,
-      merchant: "",
-      category: "",
-      date: new Date(),
-    },
   });
 
+  const isEditing = !!expenseToEdit;
+
   useEffect(() => {
-    if (expenseToAdd) {
+    if (isEditing) {
         form.reset({
-            amount: expenseToAdd.amount || 0,
-            merchant: expenseToAdd.merchant || "",
-            category: categories.includes(expenseToAdd.category) ? expenseToAdd.category : "Other",
-            date: expenseToAdd.date ? new Date(expenseToAdd.date) : new Date(),
+            amount: expenseToEdit.amount,
+            merchant: expenseToEdit.merchant,
+            category: categories.includes(expenseToEdit.category) ? expenseToEdit.category : "Other",
+            date: new Date(expenseToEdit.date),
         });
     } else {
         form.reset({
-            amount: 0,
+            amount: undefined,
             merchant: "",
             category: "",
             date: new Date(),
         });
     }
-  }, [expenseToAdd, form]);
+  }, [expenseToEdit, form, isEditing]);
 
   const onSubmit = (values: z.infer<typeof expenseSchema>) => {
-    addExpense({ ...values, date: format(values.date, "yyyy-MM-dd") });
+    const expenseData = { ...values, date: format(values.date, "yyyy-MM-dd") };
+    if (isEditing && expenseToEdit) {
+        updateExpense({ ...expenseData, id: expenseToEdit.id });
+    } else {
+        addExpense(expenseData);
+    }
     form.reset();
-    setExpenseToAdd(null);
+    setExpenseToEdit(null);
     setOpenAddExpense(false);
   };
   
   const handleOpenChange = (open: boolean) => {
     if(!open) {
-        setExpenseToAdd(null);
+        setExpenseToEdit(null);
         form.reset();
     }
     setOpenAddExpense(open);
@@ -103,9 +104,9 @@ export function AddExpenseModal() {
     <Dialog open={openAddExpense} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New Expense</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Expense' : 'Add New Expense'}</DialogTitle>
           <DialogDescription>
-            Enter the details of your transaction below.
+            {isEditing ? 'Update the details of your transaction below.' : 'Enter the details of your transaction below.'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -144,7 +145,6 @@ export function AddExpenseModal() {
                   <FormLabel>Category</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
                     value={field.value}
                   >
                     <FormControl>
@@ -206,7 +206,7 @@ export function AddExpenseModal() {
               )}
             />
             <Button type="submit" className="w-full">
-              Add Expense
+              {isEditing ? 'Save Changes' : 'Add Expense'}
             </Button>
           </form>
         </Form>

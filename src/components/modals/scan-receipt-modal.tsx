@@ -13,13 +13,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { scanReceipt, ScanReceiptOutput } from "@/ai/flows/automatic-receipt-scanning";
+import { scanReceipt } from "@/ai/flows/automatic-receipt-scanning";
 import { Loader2, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
+import { Expense } from "@/types";
 
 export function ScanReceiptModal() {
-  const { openScanReceipt, setOpenScanReceipt, setOpenAddExpense, setExpenseToAdd } = useContext(AppContext);
+  const { openScanReceipt, setOpenScanReceipt, setOpenAddExpense, setExpenseToEdit } = useContext(AppContext);
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -50,7 +51,8 @@ export function ScanReceiptModal() {
         const receiptDataUri = reader.result as string;
         const result = await scanReceipt({ receiptDataUri });
 
-        setExpenseToAdd({
+        setExpenseToEdit({
+          id: '', // Empty id signifies a new expense from a scan
           amount: result.amount,
           merchant: result.merchant,
           category: result.category,

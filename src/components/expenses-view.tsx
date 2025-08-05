@@ -13,15 +13,32 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "./ui/button";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Expense } from "@/types";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type SortKey = keyof Expense;
 
 export default function ExpensesView() {
-  const { expenses } = useContext(AppContext);
+  const { expenses, setOpenAddExpense, setExpenseToEdit, deleteExpense } = useContext(AppContext);
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
 
   const sortedExpenses = useMemo(() => {
     const sorted = [...expenses].sort((a, b) => {
@@ -55,6 +72,18 @@ export default function ExpensesView() {
       setSortOrder("asc");
     }
   };
+  
+  const handleEdit = (expense: Expense) => {
+    setExpenseToEdit(expense);
+    setOpenAddExpense(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (expenseToDelete) {
+      deleteExpense(expenseToDelete.id);
+      setExpenseToDelete(null);
+    }
+  };
 
   const SortableHeader = ({
     sortKeyName,
@@ -76,6 +105,7 @@ export default function ExpensesView() {
   );
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>All Expenses</CardTitle>
@@ -93,6 +123,7 @@ export default function ExpensesView() {
                 </SortableHeader>
                 <SortableHeader sortKeyName="date">Date</SortableHeader>
                 <SortableHeader sortKeyName="amount">Amount</SortableHeader>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -108,15 +139,35 @@ export default function ExpensesView() {
                     <TableCell>
                       {new Date(expense.date).toLocaleDateString()}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell>
                       ${expense.amount.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <span className="sr-only">Open menu</span>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleEdit(expense)}>
+                                    <Pencil className="mr-2 h-4 w-4" />
+                                    Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setExpenseToDelete(expense)} className="text-destructive focus:text-destructive">
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={4}
+                    colSpan={5}
                     className="h-24 text-center text-muted-foreground"
                   >
                     No expenses found. Add one to get started!
@@ -128,5 +179,21 @@ export default function ExpensesView() {
         </div>
       </CardContent>
     </Card>
+
+    <AlertDialog open={!!expenseToDelete} onOpenChange={(open) => !open && setExpenseToDelete(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete this expense record.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteConfirm}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
