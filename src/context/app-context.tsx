@@ -2,16 +2,7 @@
 
 import React, { createContext, useState, ReactNode } from "react";
 import { Expense, Currency } from "@/types";
-import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useToast } from "@/hooks/use-toast";
-
-const initialExpenses: Expense[] = [
-    { id: '1', amount: 75.50, merchant: 'SuperMart', category: 'Groceries', date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] },
-    { id: '2', amount: 12.00, merchant: 'CoffeeBean', category: 'Food & Drink', date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] },
-    { id: '3', amount: 30.00, merchant: 'Gas Station', category: 'Transport', date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] },
-    { id: '4', amount: 200.00, merchant: 'TechStore', category: 'Shopping', date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] },
-];
-
 
 interface AppContextType {
   expenses: Expense[];
@@ -49,14 +40,15 @@ export const AppContext = createContext<AppContextType>({
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
-  const [expenses, setExpenses] = useLocalStorage<Expense[]>("expenses", initialExpenses);
-  const [budget, setBudget] = useLocalStorage<number>("budget", 2000);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [budget, setBudget] = useState<number>(2000);
   const [openAddExpense, setOpenAddExpense] = useState(false);
   const [openScanReceipt, setOpenScanReceipt] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
-  const [currency, setCurrency] = useLocalStorage<Currency>("currency", "USD");
+  const [currency, setCurrency] = useState<Currency>("USD");
 
   const addExpense = (expense: Omit<Expense, "id">) => {
+    // This will be replaced with Firebase logic
     const newExpense = { ...expense, id: new Date().toISOString() };
     setExpenses((prevExpenses) => [newExpense, ...prevExpenses]);
     toast({
@@ -66,6 +58,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const updateExpense = (updatedExpense: Expense) => {
+     // This will be replaced with Firebase logic
     setExpenses(prevExpenses => prevExpenses.map(expense => expense.id === updatedExpense.id ? updatedExpense : expense));
     toast({
       title: "Expense Updated",
@@ -74,6 +67,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteExpense = (id: string) => {
+     // This will be replaced with Firebase logic
     setExpenses(prevExpenses => prevExpenses.filter(expense => expense.id !== id));
     toast({
       variant: "destructive",

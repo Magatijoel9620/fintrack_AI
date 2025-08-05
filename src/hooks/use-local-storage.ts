@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 
+// This hook is no longer used for primary data, but kept for potential other uses (e.g. theme, currency)
 function getStorageValue<T>(key: string, defaultValue: T): T {
   if (typeof window !== "undefined") {
     const saved = localStorage.getItem(key);
@@ -26,7 +27,9 @@ export function useLocalStorage<T>(
   });
 
   useEffect(() => {
-    localStorage.setItem(key, JSON.stringify(value));
+    if (typeof window !== "undefined") {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
   }, [key, value]);
 
   return [value, setValue];
