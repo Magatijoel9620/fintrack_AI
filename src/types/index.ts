@@ -6,11 +6,12 @@ export type Expense = {
   date: string; // YYYY-MM-DD
 };
 
-export type Currency = "USD" | "EUR" | "GBP" | "JPY";
+export type Currency = "USD" | "EUR" | "GBP" | "JPY" | "KSH";
 
 export const CURRENCY_SYMBOLS: Record<Currency, string> = {
     USD: "$",
     EUR: "€",
     GBP: "£",
     JPY: "¥",
+    KSH: "Ksh",
 };

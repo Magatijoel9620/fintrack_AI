@@ -108,6 +108,7 @@ export default function AppHeader({ activeView }: AppHeaderProps) {
                     <DropdownMenuRadioItem value="EUR">EUR (€)</DropdownMenuRadioItem>
                     <DropdownMenuRadioItem value="GBP">GBP (£)</DropdownMenuRadioItem>
                     <DropdownMenuRadioItem value="JPY">JPY (¥)</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="KSH">KSH (Ksh)</DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
             </DropdownMenuContent>
         </DropdownMenu>
