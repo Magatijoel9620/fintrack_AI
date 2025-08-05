@@ -34,6 +34,7 @@ import { CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { CURRENCY_SYMBOLS } from "@/types";
 
 const expenseSchema = z.object({
   amount: z.coerce.number().min(0.01, "Amount must be greater than 0."),
@@ -54,13 +55,14 @@ const categories = [
 ];
 
 export function AddExpenseModal() {
-  const { openAddExpense, setOpenAddExpense, addExpense, updateExpense, expenseToEdit, setExpenseToEdit } = useContext(AppContext);
+  const { openAddExpense, setOpenAddExpense, addExpense, updateExpense, expenseToEdit, setExpenseToEdit, currency } = useContext(AppContext);
 
   const form = useForm<z.infer<typeof expenseSchema>>({
     resolver: zodResolver(expenseSchema),
   });
 
   const isEditing = !!expenseToEdit;
+  const currencySymbol = CURRENCY_SYMBOLS[currency];
 
   useEffect(() => {
     if (isEditing) {
@@ -116,7 +118,7 @@ export function AddExpenseModal() {
               name="amount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Amount ($)</FormLabel>
+                  <FormLabel>Amount ({currencySymbol})</FormLabel>
                   <FormControl>
                     <Input type="number" step="0.01" {...field} />
                   </FormControl>

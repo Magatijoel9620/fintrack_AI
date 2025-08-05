@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "./ui/button";
 import { ArrowUpDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import { Expense } from "@/types";
+import { Expense, CURRENCY_SYMBOLS } from "@/types";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -35,10 +35,11 @@ import {
 type SortKey = keyof Expense;
 
 export default function ExpensesView() {
-  const { expenses, setOpenAddExpense, setExpenseToEdit, deleteExpense } = useContext(AppContext);
+  const { expenses, setOpenAddExpense, setExpenseToEdit, deleteExpense, currency } = useContext(AppContext);
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
+  const currencySymbol = CURRENCY_SYMBOLS[currency];
 
   const sortedExpenses = useMemo(() => {
     const sorted = [...expenses].sort((a, b) => {
@@ -140,7 +141,7 @@ export default function ExpensesView() {
                       {new Date(expense.date).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
-                      ${expense.amount.toFixed(2)}
+                      {currencySymbol}{expense.amount.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-right">
                         <DropdownMenu>

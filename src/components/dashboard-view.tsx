@@ -22,9 +22,11 @@ import {
 } from "@/components/ui/chart";
 import { PieChart, Pie, Cell } from "recharts";
 import { TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { CURRENCY_SYMBOLS } from "@/types";
 
 export default function DashboardView() {
-  const { expenses, budget } = useContext(AppContext);
+  const { expenses, budget, currency } = useContext(AppContext);
+  const currencySymbol = CURRENCY_SYMBOLS[currency];
 
   const currentMonthExpenses = useMemo(() => {
     const currentMonth = new Date().getMonth();
@@ -88,7 +90,7 @@ export default function DashboardView() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${totalSpending.toFixed(2)}
+              {currencySymbol}{totalSpending.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground">
               Your expenses for the current month.
@@ -112,10 +114,10 @@ export default function DashboardView() {
                 remainingBudget >= 0 ? "text-green-500" : "text-red-500"
               }`}
             >
-              ${remainingBudget.toFixed(2)}
+              {currencySymbol}{remainingBudget.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground">
-              ${budget.toFixed(2)} monthly budget.
+              {currencySymbol}{budget.toFixed(2)} monthly budget.
             </p>
           </CardContent>
         </Card>
@@ -141,7 +143,7 @@ export default function DashboardView() {
                 <PieChart>
                   <ChartTooltip
                     cursor={false}
-                    content={<ChartTooltipContent hideLabel />}
+                    content={<ChartTooltipContent hideLabel formatter={(value) => `${currencySymbol}${value.toLocaleString()}`} />}
                   />
                   <Pie data={categorySpending} dataKey="value" nameKey="name" innerRadius={50}>
                      {categorySpending.map((entry, index) => (
@@ -182,7 +184,7 @@ export default function DashboardView() {
                         <Badge variant="outline">{expense.category}</Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        ${expense.amount.toFixed(2)}
+                        {currencySymbol}{expense.amount.toFixed(2)}
                       </TableCell>
                     </TableRow>
                   ))

@@ -26,6 +26,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
+import { CURRENCY_SYMBOLS } from "@/types";
 
 const budgetSchema = z.object({
   budget: z.coerce
@@ -34,8 +35,9 @@ const budgetSchema = z.object({
 });
 
 export default function BudgetView() {
-  const { budget, setBudget, expenses } = useContext(AppContext);
+  const { budget, setBudget, expenses, currency } = useContext(AppContext);
   const { toast } = useToast();
+  const currencySymbol = CURRENCY_SYMBOLS[currency];
 
   const form = useForm<z.infer<typeof budgetSchema>>({
     resolver: zodResolver(budgetSchema),
@@ -48,7 +50,7 @@ export default function BudgetView() {
     setBudget(values.budget);
     toast({
       title: "Budget Updated",
-      description: `Your new monthly budget is $${values.budget.toFixed(2)}.`,
+      description: `Your new monthly budget is ${currencySymbol}${values.budget.toFixed(2)}.`,
     });
   };
 
@@ -86,7 +88,7 @@ export default function BudgetView() {
                 name="budget"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Monthly Budget ($)</FormLabel>
+                    <FormLabel>Monthly Budget ({currencySymbol})</FormLabel>
                     <FormControl>
                       <Input type="number" step="10" {...field} />
                     </FormControl>
@@ -113,13 +115,13 @@ export default function BudgetView() {
             <div className="flex justify-between mb-1">
               <span className="text-base font-medium text-primary">Spent</span>
               <span className="text-sm font-medium">
-                ${totalSpending.toFixed(2)}
+                {currencySymbol}{totalSpending.toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between mb-2">
               <span className="text-base font-medium">Budget</span>
               <span className="text-sm font-medium">
-                ${budget.toFixed(2)}
+                {currencySymbol}{budget.toFixed(2)}
               </span>
             </div>
             <Progress value={budgetProgress} className="w-full" />
@@ -138,7 +140,7 @@ export default function BudgetView() {
                   remainingBudget >= 0 ? "" : "text-destructive"
                 }`}
               >
-                ${Math.abs(remainingBudget).toFixed(2)}
+                {currencySymbol}{Math.abs(remainingBudget).toFixed(2)}
               </span>
             </div>
           </div>

@@ -3,7 +3,7 @@
 import React, { useEffect, useContext } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Plus, ScanLine, Mic, Sun, Moon } from "lucide-react";
+import { Plus, ScanLine, Mic, Sun, Moon, DollarSign } from "lucide-react";
 import { useVoiceRecognition } from "@/hooks/use-voice-recognition";
 import { AppContext } from "@/context/app-context";
 import { useToast } from "@/hooks/use-toast";
@@ -13,7 +13,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
+import { Currency } from "@/types";
 
 interface AppHeaderProps {
   activeView: string;
@@ -29,7 +34,7 @@ const viewTitles: { [key: string]: string } = {
 export default function AppHeader({ activeView }: AppHeaderProps) {
   const { isListening, transcript, startListening, stopListening } =
     useVoiceRecognition();
-  const { setOpenAddExpense, setOpenScanReceipt } = useContext(AppContext);
+  const { setOpenAddExpense, setOpenScanReceipt, currency, setCurrency } = useContext(AppContext);
   const { toast } = useToast();
   const { setTheme } = useTheme();
 
@@ -87,6 +92,26 @@ export default function AppHeader({ activeView }: AppHeaderProps) {
           <Mic className="h-5 w-5" />
           <span className="sr-only">Use Voice Command</span>
         </Button>
+
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                    <DollarSign className="h-[1.2rem] w-[1.2rem]" />
+                    <span className="sr-only">Change currency</span>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Currency</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup value={currency} onValueChange={(value) => setCurrency(value as Currency)}>
+                    <DropdownMenuRadioItem value="USD">USD ($)</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="EUR">EUR (€)</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="GBP">GBP (£)</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="JPY">JPY (¥)</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+        </DropdownMenu>
+
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon">

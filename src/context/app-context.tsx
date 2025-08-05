@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useState, ReactNode } from "react";
-import { Expense } from "@/types";
+import { Expense, Currency } from "@/types";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useToast } from "@/hooks/use-toast";
 
@@ -26,6 +26,8 @@ interface AppContextType {
   setExpenseToEdit: (expense: Expense | null) => void;
   openScanReceipt: boolean;
   setOpenScanReceipt: (open: boolean) => void;
+  currency: Currency;
+  setCurrency: (currency: Currency) => void;
 }
 
 export const AppContext = createContext<AppContextType>({
@@ -41,6 +43,8 @@ export const AppContext = createContext<AppContextType>({
   setExpenseToEdit: () => {},
   openScanReceipt: false,
   setOpenScanReceipt: () => {},
+  currency: "USD",
+  setCurrency: () => {},
 });
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
@@ -50,6 +54,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [openAddExpense, setOpenAddExpense] = useState(false);
   const [openScanReceipt, setOpenScanReceipt] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
+  const [currency, setCurrency] = useLocalStorage<Currency>("currency", "USD");
 
   const addExpense = (expense: Omit<Expense, "id">) => {
     const newExpense = { ...expense, id: new Date().toISOString() };
@@ -76,6 +81,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       description: `The expense has been successfully deleted.`,
     });
   };
+  
+  const handleSetCurrency = (newCurrency: Currency) => {
+    setCurrency(newCurrency);
+    toast({
+        title: "Currency Updated",
+        description: `Currency has been set to ${newCurrency}.`,
+    });
+  }
 
   return (
     <AppContext.Provider
@@ -92,6 +105,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setExpenseToEdit,
         openScanReceipt,
         setOpenScanReceipt,
+        currency,
+        setCurrency: handleSetCurrency,
       }}
     >
       {children}
