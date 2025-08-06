@@ -10,6 +10,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth } from "@/lib/firebase";
 
 type Message = {
     role: 'user' | 'assistant';
@@ -18,6 +20,7 @@ type Message = {
 
 export default function AdvisorView() {
   const { expenses } = useContext(AppContext);
+  const [user] = useAuthState(auth);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conversation, setConversation] = useState<Message[]>([]);
@@ -25,10 +28,11 @@ export default function AdvisorView() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   const handleSendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !user) return;
 
     const userMessage: Message = { role: 'user', content: input };
-    setConversation(prev => [...prev, userMessage]);
+    const newConversation = [...conversation, userMessage];
+    setConversation(newConversation);
     setInput('');
     setLoading(true);
     setError(null);
@@ -39,6 +43,7 @@ export default function AdvisorView() {
         const response = await askFinancialAdvisor({
             question: input,
             expenses: JSON.stringify(relevantExpenses),
+            history: conversation, // Pass previous messages
         });
         const assistantMessage: Message = { role: 'assistant', content: response.answer };
         setConversation(prev => [...prev, assistantMessage]);
@@ -46,6 +51,8 @@ export default function AdvisorView() {
     } catch (e) {
       setError("Failed to get response from advisor. Please try again.");
       console.error(e);
+      // Rollback optimistic update on error
+      setConversation(conversation);
     } finally {
       setLoading(false);
     }
@@ -72,7 +79,7 @@ export default function AdvisorView() {
         <Card className="flex-1 flex flex-col">
             <CardHeader>
                 <CardTitle>AI Financial Advisor</CardTitle>
-                <CardDescription>Ask me anything about your finances.</CardDescription>
+                <CardDescription>Ask me anything about your finances. I'll remember our conversation.</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
                 <ScrollArea className="flex-1 pr-4" ref={scrollAreaRef}>
@@ -92,10 +99,10 @@ export default function AdvisorView() {
                             <div className={`rounded-lg p-3 max-w-[80%] ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
                                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                             </div>
-                            {message.role === 'user' && (
+                            {message.role === 'user' && user && (
                                 <Avatar className="w-8 h-8 border">
-                                     <AvatarImage src="https://placehold.co/40x40.png" alt="User" data-ai-hint="person avatar" />
-                                    <AvatarFallback>U</AvatarFallback>
+                                     <AvatarImage src={user.photoURL ?? "https://placehold.co/40x40.png"} alt="User" data-ai-hint="person avatar" />
+                                    <AvatarFallback>{user.displayName?.charAt(0) ?? 'U'}</AvatarFallback>
                                 </Avatar>
                             )}
                         </div>

@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Provides answers to user's financial questions based on their spending data.
+ * @fileOverview Provides answers to user's financial questions based on their spending data and conversation history.
  *
  * - askFinancialAdvisor - A function that answers financial questions.
  * - AskFinancialAdvisorInput - The input type for the askFinancialAdvisor function.
@@ -11,16 +11,22 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+const MessageSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string(),
+});
+
 const AskFinancialAdvisorInputSchema = z.object({
-  question: z.string().describe('The user\'s financial question.'),
+  question: z.string().describe("The user's current financial question."),
   expenses: z
     .string()
-    .describe('A stringified JSON array of the user\'s recent expenses.'),
+    .describe("A stringified JSON array of the user's recent expenses."),
+  history: z.array(MessageSchema).describe('The history of the conversation so far.'),
 });
 export type AskFinancialAdvisorInput = z.infer<typeof AskFinancialAdvisorInputSchema>;
 
 const AskFinancialAdvisorOutputSchema = z.object({
-  answer: z.string().describe('The advisor\'s answer to the user\'s question.'),
+  answer: z.string().describe("The advisor's answer to the user's question."),
 });
 export type AskFinancialAdvisorOutput = z.infer<typeof AskFinancialAdvisorOutputSchema>;
 
@@ -36,15 +42,19 @@ const prompt = ai.definePrompt({
   output: {schema: AskFinancialAdvisorOutputSchema},
   prompt: `You are a friendly and helpful personal finance advisor. A user is asking for advice. 
   
-Use their recent expense data to provide a personalized and actionable answer.
+Use their recent expense data and the conversation history to provide a personalized and actionable answer.
 
-User's Question: {{{question}}}
+Conversation History:
+{{#each history}}
+{{role}}: {{{content}}}
+{{/each}}
 
 User's Recent Expenses:
 {{{expenses}}}
 
-Keep your answer concise and easy to understand.
-`,
+User's Current Question: {{{question}}}
+
+Keep your answer concise, conversational, and easy to understand. Directly answer the user's question based on the provided context.`,
 });
 
 const askFinancialAdvisorFlow = ai.defineFlow(
