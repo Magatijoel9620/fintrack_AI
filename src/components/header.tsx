@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useContext } from "react";
@@ -29,6 +30,7 @@ const viewTitles: { [key: string]: string } = {
   expenses: "Expenses",
   budget: "Budget",
   advisor: "AI Financial Advisor",
+  admin: "Admin",
 };
 
 export default function AppHeader({ activeView }: AppHeaderProps) {

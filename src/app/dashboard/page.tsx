@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -10,6 +11,7 @@ import {
   ScanLine,
   Wallet,
   Bot,
+  Shield,
 } from "lucide-react";
 import {
   SidebarProvider,
@@ -31,6 +33,7 @@ import DashboardView from "@/components/dashboard-view";
 import ExpensesView from "@/components/expenses-view";
 import BudgetView from "@/components/budget-view";
 import AdvisorView from "@/components/advisor-view";
+import AdminView from "@/components/admin-view";
 import { AddExpenseModal } from "@/components/modals/add-expense-modal";
 import { ScanReceiptModal } from "@/components/modals/scan-receipt-modal";
 import { AppContext } from "@/context/app-context";
@@ -38,7 +41,7 @@ import { AppContext } from "@/context/app-context";
 // import { useAuthState } from "react-firebase-hooks/auth";
 import { useRouter } from "next/navigation";
 
-type View = "dashboard" | "expenses" | "budget" | "advisor";
+type View = "dashboard" | "expenses" | "budget" | "advisor" | "admin";
 
 export default function FinTrackApp() {
   const [activeView, setActiveView] = React.useState<View>("dashboard");
@@ -63,6 +66,8 @@ export default function FinTrackApp() {
         return <BudgetView />;
       case "advisor":
         return <AdvisorView />;
+      case "admin":
+        return <AdminView />;
       default:
         return <DashboardView />;
     }
@@ -123,6 +128,16 @@ export default function FinTrackApp() {
               >
                 <Bot />
                 <span>AI Advisor</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+             <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setActiveView("admin")}
+                isActive={activeView === "admin"}
+                tooltip="Admin"
+              >
+                <Shield />
+                <span>Admin</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
