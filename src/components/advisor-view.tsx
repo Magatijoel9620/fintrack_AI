@@ -47,7 +47,7 @@ export default function AdvisorView() {
         const response = await askFinancialAdvisor({
             question: input,
             expenses: JSON.stringify(relevantExpenses),
-            history: conversation, // Pass previous messages
+            history: conversation.slice(-10), // Pass last 10 messages
         });
         const assistantMessage: Message = { role: 'assistant', content: response.answer };
         setConversation(prev => [...prev, assistantMessage]);
