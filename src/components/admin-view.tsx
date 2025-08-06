@@ -23,12 +23,12 @@ const AdminView = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
             <Avatar className="h-20 w-20 border-2 border-primary">
                 <AvatarImage src="https://placehold.co/80x80.png" alt="Admin" data-ai-hint="person avatar" />
                 <AvatarFallback>A</AvatarFallback>
             </Avatar>
-            <div>
+            <div className="text-center sm:text-left">
                 <h3 className="text-lg font-semibold">Admin User</h3>
                 <p className="text-sm text-muted-foreground">admin@fintrack.ai</p>
                 <Button variant="outline" size="sm" className="mt-2">Edit Profile</Button>
@@ -43,10 +43,10 @@ const AdminView = () => {
           <CardDescription>View and manage application users.</CardDescription>
         </CardHeader>
         <CardContent>
-           <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Search for a user by email.</p>
-                <div className="flex gap-2">
-                    <Input placeholder="user@example.com" className="w-auto" />
+           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <p className="text-sm text-muted-foreground text-center sm:text-left">Search for a user by email.</p>
+                <div className="flex gap-2 w-full sm:w-auto">
+                    <Input placeholder="user@example.com" className="w-full sm:w-auto" />
                     <Button>Search</Button>
                 </div>
             </div>
@@ -59,20 +59,20 @@ const AdminView = () => {
            <CardDescription>Configure global settings for the application.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-                <div>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+                <div className='text-center sm:text-left'>
                     <h4 className="font-medium">Enable Feature Flags</h4>
                     <p className="text-sm text-muted-foreground">Turn new features on or off globally.</p>
                 </div>
-                <Button variant="secondary">Manage Flags</Button>
+                <Button variant="secondary" className='w-full sm:w-auto'>Manage Flags</Button>
             </div>
             <Separator />
-            <div className="flex items-center justify-between">
-                <div>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+                <div className='text-center sm:text-left'>
                     <h4 className="font-medium">API Keys</h4>
                     <p className="text-sm text-muted-foreground">Manage third-party API integrations.</p>
                 </div>
-                <Button variant="secondary">Configure Keys</Button>
+                <Button variant="secondary" className='w-full sm:w-auto'>Configure Keys</Button>
             </div>
         </CardContent>
       </Card>

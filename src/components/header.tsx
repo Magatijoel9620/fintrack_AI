@@ -72,18 +72,19 @@ export default function AppHeader({ activeView }: AppHeaderProps) {
           {viewTitles[activeView]}
         </h1>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         <Button
           variant="outline"
           size="sm"
           onClick={() => setOpenScanReceipt(true)}
+          className="p-2 sm:px-3"
         >
-          <ScanLine className="mr-2 h-4 w-4" />
-          Scan Receipt
+          <ScanLine className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Scan Receipt</span>
         </Button>
-        <Button size="sm" onClick={() => setOpenAddExpense(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Expense
+        <Button size="sm" onClick={() => setOpenAddExpense(true)} className="p-2 sm:px-3">
+          <Plus className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Add Expense</span>
         </Button>
         <Button
           variant="ghost"
