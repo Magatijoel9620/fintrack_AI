@@ -7,19 +7,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { Shield } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 
 const AdminView = () => {
   return (
     <div className="grid gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Admin Profile</CardTitle>
-          <CardDescription>Manage application settings and users.</CardDescription>
+      <Card className="bg-gradient-to-br from-card to-muted/30">
+        <CardHeader className="flex flex-row items-start gap-4">
+          <div className="p-3 rounded-full bg-primary/10 border border-primary/20">
+            <ShieldCheck className="h-8 w-8 text-primary" />
+          </div>
+          <div>
+            <CardTitle>Admin Panel</CardTitle>
+            <CardDescription>Manage application settings and user access.</CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4">
-            <Avatar className="h-20 w-20">
+            <Avatar className="h-20 w-20 border-2 border-primary">
                 <AvatarImage src="https://placehold.co/80x80.png" alt="Admin" data-ai-hint="person avatar" />
                 <AvatarFallback>A</AvatarFallback>
             </Avatar>

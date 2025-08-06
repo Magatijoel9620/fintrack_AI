@@ -4,7 +4,7 @@
 import * as React from "react";
 import {
   BarChart2,
-  CircleDollarSign,
+  Coins,
   Home,
   Mic,
   Plus,
@@ -82,7 +82,7 @@ export default function FinTrackApp() {
       <Sidebar>
         <SidebarHeader>
           <div className="flex items-center gap-2">
-            <CircleDollarSign className="w-8 h-8 text-primary" />
+            <Coins className="w-8 h-8 text-primary" />
             <div className="flex flex-col">
               <h2 className="text-lg font-bold font-headline">FinTrack AI</h2>
             </div>

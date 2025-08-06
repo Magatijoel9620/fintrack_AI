@@ -21,7 +21,7 @@ import {
   ChartLegendContent,
 } from "@/components/ui/chart";
 import { PieChart, Pie, Cell } from "recharts";
-import { TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, WalletCards, PiggyBank } from "lucide-react";
 import { CURRENCY_SYMBOLS } from "@/types";
 
 export default function DashboardView() {
@@ -45,7 +45,7 @@ export default function DashboardView() {
   }, [currentMonthExpenses]);
 
   const remainingBudget = budget - totalSpending;
-  const budgetProgress = (totalSpending / budget) * 100;
+  const budgetProgress = budget > 0 ? (totalSpending / budget) * 100 : 0;
 
   const categorySpending = useMemo(() => {
     const spending = new Map<string, number>();
@@ -103,7 +103,7 @@ export default function DashboardView() {
               Remaining Budget
             </CardTitle>
             {remainingBudget >= 0 ? (
-              <TrendingUp className="h-4 w-4 text-green-500" />
+              <TrendingUp className="h-4 w-4 text-emerald-500" />
             ) : (
               <TrendingDown className="h-4 w-4 text-red-500" />
             )}
@@ -111,7 +111,7 @@ export default function DashboardView() {
           <CardContent>
             <div
               className={`text-2xl font-bold ${
-                remainingBudget >= 0 ? "text-green-500" : "text-red-500"
+                remainingBudget >= 0 ? "text-emerald-500" : "text-red-500"
               }`}
             >
               {currencySymbol}{remainingBudget.toFixed(2)}
@@ -154,8 +154,10 @@ export default function DashboardView() {
                 </PieChart>
               </ChartContainer>
             ) : (
-              <div className="flex h-[200px] items-center justify-center text-muted-foreground">
-                No spending data for this month.
+              <div className="flex h-[200px] flex-col items-center justify-center text-center text-muted-foreground bg-muted/50 rounded-lg">
+                <PiggyBank className="h-12 w-12 mb-2 text-primary/80" />
+                <span className="font-medium">No spending data for this month.</span>
+                <span className="text-xs">Add an expense to see your categories here.</span>
               </div>
             )}
           </CardContent>
@@ -192,9 +194,12 @@ export default function DashboardView() {
                   <TableRow>
                     <TableCell
                       colSpan={3}
-                      className="text-center text-muted-foreground"
+                      className="h-24 text-center"
                     >
-                      No transactions yet.
+                      <div className="flex flex-col items-center justify-center text-muted-foreground">
+                        <WalletCards className="h-10 w-10 mb-2" />
+                        <span>No transactions yet.</span>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )}

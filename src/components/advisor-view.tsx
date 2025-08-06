@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AppContext } from "@/context/app-context";
 import { askFinancialAdvisor } from "@/ai/flows/ask-financial-advisor";
-import { Loader2, Send } from "lucide-react";
+import { Loader2, Send, Bot } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -87,17 +87,19 @@ export default function AdvisorView() {
             </CardHeader>
             <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
                 <ScrollArea className="flex-1 pr-4" ref={scrollAreaRef}>
-                    <div className="space-y-4">
+                    <div className="space-y-4 h-full">
                         {conversation.length === 0 && (
-                             <div className="flex h-full items-center justify-center text-muted-foreground">
-                                Start a conversation by typing your question below.
+                             <div className="flex flex-col h-full items-center justify-center text-center text-muted-foreground p-8 rounded-lg bg-muted/50">
+                                <Bot className="h-16 w-16 mb-4 text-primary" />
+                                <h3 className="text-lg font-semibold">Start a Conversation</h3>
+                                <p className="text-sm">Ask about your spending, get savings tips, or seek financial advice. For example: "How much did I spend on food last month?"</p>
                              </div>
                         )}
                         {conversation.map((message, index) => (
                         <div key={index} className={`flex items-start gap-3 ${message.role === 'user' ? 'justify-end' : ''}`}>
                             {message.role === 'assistant' && (
-                                <Avatar className="w-8 h-8 border">
-                                    <AvatarFallback>AI</AvatarFallback>
+                                <Avatar className="w-8 h-8 border-2 border-primary/50">
+                                    <AvatarFallback className="bg-primary/20 text-primary"><Bot className="h-5 w-5"/></AvatarFallback>
                                 </Avatar>
                             )}
                             <div className={`rounded-lg p-3 max-w-[80%] ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
@@ -113,8 +115,8 @@ export default function AdvisorView() {
                         ))}
                          {loading && (
                             <div className="flex items-start gap-3">
-                                <Avatar className="w-8 h-8 border">
-                                    <AvatarFallback>AI</AvatarFallback>
+                                <Avatar className="w-8 h-8 border-2 border-primary/50">
+                                     <AvatarFallback className="bg-primary/20 text-primary"><Bot className="h-5 w-5"/></AvatarFallback>
                                 </Avatar>
                                 <div className="rounded-lg p-3 bg-muted">
                                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground"/>
