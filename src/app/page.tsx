@@ -1,5 +1,5 @@
-import Login from "@/components/login";
+import FinTrackApp from "./dashboard/page";
 
 export default function HomePage() {
-  return <Login />;
+  return <FinTrackApp />;
 }

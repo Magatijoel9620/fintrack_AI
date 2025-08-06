@@ -19,11 +19,13 @@ const firebaseConfig = {
 
 // Initialize Firebase
 let app;
-if (!getApps().length) {
-    app = initializeApp(firebaseConfig);
-} else {
-    app = getApps()[0];
-}
+// if (!getApps().length) {
+//     app = initializeApp(firebaseConfig);
+// } else {
+//     app = getApps()[0];
+// }
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// export const auth = getAuth(app);
+// export const db = getFirestore(app);
+export const auth = {} as any;
+export const db = {} as any;

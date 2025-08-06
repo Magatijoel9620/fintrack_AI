@@ -10,8 +10,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "@/lib/firebase";
+// import { useAuthState } from "react-firebase-hooks/auth";
+// import { auth } from "@/lib/firebase";
 
 type Message = {
     role: 'user' | 'assistant';
@@ -20,7 +20,11 @@ type Message = {
 
 export default function AdvisorView() {
   const { expenses } = useContext(AppContext);
-  const [user] = useAuthState(auth);
+  // const [user] = useAuthState(auth);
+  const user = {
+    displayName: "User",
+    photoURL: "https://placehold.co/40x40.png"
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conversation, setConversation] = useState<Message[]>([]);

@@ -34,8 +34,8 @@ import AdvisorView from "@/components/advisor-view";
 import { AddExpenseModal } from "@/components/modals/add-expense-modal";
 import { ScanReceiptModal } from "@/components/modals/scan-receipt-modal";
 import { AppContext } from "@/context/app-context";
-import { auth } from "@/lib/firebase";
-import { useAuthState } from "react-firebase-hooks/auth";
+// import { auth } from "@/lib/firebase";
+// import { useAuthState } from "react-firebase-hooks/auth";
 import { useRouter } from "next/navigation";
 
 type View = "dashboard" | "expenses" | "budget" | "advisor";
@@ -43,14 +43,14 @@ type View = "dashboard" | "expenses" | "budget" | "advisor";
 export default function FinTrackApp() {
   const [activeView, setActiveView] = React.useState<View>("dashboard");
   const { setOpenAddExpense, setOpenScanReceipt } = React.useContext(AppContext);
-  const [user, loading] = useAuthState(auth);
+  // const [user, loading] = useAuthState(auth);
   const router = useRouter();
 
-  React.useEffect(() => {
-    if (!loading && !user) {
-      router.push("/");
-    }
-  }, [user, loading, router]);
+  // React.useEffect(() => {
+  //   if (!loading && !user) {
+  //     router.push("/");
+  //   }
+  // }, [user, loading, router]);
 
 
   const renderView = () => {
@@ -68,9 +68,9 @@ export default function FinTrackApp() {
     }
   };
 
-  if (loading || !user) {
-    return <div>Loading...</div>;
-  }
+  // if (loading || !user) {
+  //   return <div>Loading...</div>;
+  // }
 
   return (
     <SidebarProvider>
@@ -130,12 +130,12 @@ export default function FinTrackApp() {
         <SidebarFooter>
            <div className="flex items-center gap-3">
              <Avatar>
-               <AvatarImage src={user.photoURL ?? "https://placehold.co/40x40.png"} alt="User" data-ai-hint="person avatar" />
-               <AvatarFallback>{user.displayName?.charAt(0) ?? 'U'}</AvatarFallback>
+               <AvatarImage src={"https://placehold.co/40x40.png"} alt="User" data-ai-hint="person avatar" />
+               <AvatarFallback>U</AvatarFallback>
              </Avatar>
              <div className="flex flex-col">
-              <span className="text-sm font-semibold">{user.displayName}</span>
-              <span className="text-xs text-muted-foreground">{user.email}</span>
+              <span className="text-sm font-semibold">User</span>
+              <span className="text-xs text-muted-foreground">user@example.com</span>
              </div>
            </div>
         </SidebarFooter>
