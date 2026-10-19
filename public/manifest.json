@@ -1,21 +1,17 @@
 {
-    "name": "FinTrack AI",
-    "short_name": "FinTrack",
-    "description": "Take full control of your personal finances with AI.",
-    "start_url": "/",
-    "display": "standalone",
-    "background_color": "#ffffff",
-    "theme_color": "#4299e1",
-    "icons": [
-        {
-            "src": "/icons/icon-192x192.png",
-            "sizes": "192x192",
-            "type": "image/png"
-        },
-        {
-            "src": "/icons/icon-512x512.png",
-            "sizes": "512x512",
-            "type": "image/png"
-        }
-    ]
+  "name": "FinAI",
+  "short_name": "FinAI",
+  "description": "A clear workspace for stock, sales, purchasing and business performance.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f8fc",
+  "theme_color": "#0c1427",
+  "icons": [
+    {
+      "src": "/finai.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }

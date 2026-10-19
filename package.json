@@ -1,6 +1,6 @@
 {
-  "name": "nextn",
-  "version": "0.1.0",
+  "name": "inventory-tracker",
+  "version": "1.0.0-beta.6",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
@@ -8,8 +8,9 @@
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.7",
@@ -42,8 +43,7 @@
     "date-fns": "^3.6.0",
     "dotenv": "^16.5.0",
     "embla-carousel-react": "^8.6.0",
-    "firebase": "^10.12.2",
-    "react-firebase-hooks": "^5.1.1",
+    "firebase": "^10.14.1",
     "genkit": "^1.14.1",
     "lucide-react": "^0.475.0",
     "next": "15.5.9",
@@ -52,11 +52,13 @@
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
+    "react-firebase-hooks": "^5.1.1",
     "react-hook-form": "^7.54.2",
     "recharts": "^2.15.1",
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "firebase-admin": "^13.6.0"
   },
   "devDependencies": {
     "@types/node": "^20",

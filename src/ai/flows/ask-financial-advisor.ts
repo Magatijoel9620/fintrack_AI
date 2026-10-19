@@ -8,20 +8,21 @@
  * - AskFinancialAdvisorOutput - The return type for the askFinancialAdvisor function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
+import { applicationDefault, getApps, initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 
 const MessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
-  content: z.string(),
+  content: z.string().max(2000),
 });
 
 const AskFinancialAdvisorInputSchema = z.object({
-  question: z.string().describe("The user's current financial question."),
-  expenses: z
-    .string()
-    .describe("A stringified JSON array of the user's recent expenses."),
-  history: z.array(MessageSchema).describe('The history of the conversation so far.'),
+  idToken: z.string().min(100).max(6000),
+  question: z.string().trim().min(1).max(1200).describe("The user's current financial question."),
+  expenses: z.string().max(20000).describe("A bounded JSON array of the user's recent expenses."),
+  history: z.array(MessageSchema).max(10).describe("The last 10 conversation messages."),
 });
 export type AskFinancialAdvisorInput = z.infer<typeof AskFinancialAdvisorInputSchema>;
 
@@ -33,12 +34,30 @@ export type AskFinancialAdvisorOutput = z.infer<typeof AskFinancialAdvisorOutput
 export async function askFinancialAdvisor(
   input: AskFinancialAdvisorInput
 ): Promise<AskFinancialAdvisorOutput> {
-  return askFinancialAdvisorFlow(input);
+  const parsed = AskFinancialAdvisorInputSchema.safeParse(input);
+  if (!parsed.success) throw new Error("Please shorten your question and try again.");
+  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  if (!projectId) throw new Error("The financial advisor is temporarily unavailable.");
+  const app = getApps().find((existing) => existing.name === "financial-advisor-admin")
+    ?? initializeApp({ credential: applicationDefault(), projectId }, "financial-advisor-admin");
+  try {
+    await getAuth(app).verifyIdToken(parsed.data.idToken);
+  } catch {
+    throw new Error("Your session needs refreshing. Please sign in again.");
+  }
+  const { idToken: _idToken, ...safeInput } = parsed.data;
+  return askFinancialAdvisorFlow(safeInput);
 }
+
+const AdvisorPromptInputSchema = z.object({
+  question: AskFinancialAdvisorInputSchema.shape.question,
+  expenses: AskFinancialAdvisorInputSchema.shape.expenses,
+  history: AskFinancialAdvisorInputSchema.shape.history,
+});
 
 const prompt = ai.definePrompt({
   name: 'askFinancialAdvisorPrompt',
-  input: {schema: AskFinancialAdvisorInputSchema},
+  input: {schema: AdvisorPromptInputSchema},
   output: {schema: AskFinancialAdvisorOutputSchema},
   prompt: `You are a friendly and helpful personal finance advisor. A user is asking for advice. 
   
@@ -60,7 +79,7 @@ Keep your answer concise, conversational, and easy to understand. Directly answe
 const askFinancialAdvisorFlow = ai.defineFlow(
   {
     name: 'askFinancialAdvisorFlow',
-    inputSchema: AskFinancialAdvisorInputSchema,
+    inputSchema: AdvisorPromptInputSchema,
     outputSchema: AskFinancialAdvisorOutputSchema,
   },
   async input => {

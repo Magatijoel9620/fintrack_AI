@@ -10,10 +10,11 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { verifyFirebaseIdToken } from '@/lib/verify-firebase-id-token';
 
 const ScanReceiptInputSchema = z.object({
-  receiptDataUri: z
-    .string()
+  idToken: z.string().min(100).max(6000),
+  receiptDataUri: z.string().max(8_000_000)
     .describe(
       'A photo of a receipt, as a data URI that must include a MIME type and use Base64 encoding. Expected format: \'data:<mimetype>;base64,<encoded_data>\'.' // keep the single quotes in the string
     ),
@@ -29,12 +30,16 @@ const ScanReceiptOutputSchema = z.object({
 export type ScanReceiptOutput = z.infer<typeof ScanReceiptOutputSchema>;
 
 export async function scanReceipt(input: ScanReceiptInput): Promise<ScanReceiptOutput> {
-  return scanReceiptFlow(input);
+  const parsed = ScanReceiptInputSchema.safeParse(input);
+  if (!parsed.success) throw new Error("Choose a smaller receipt image and try again.");
+  await verifyFirebaseIdToken(parsed.data.idToken);
+  return scanReceiptFlow({ receiptDataUri: parsed.data.receiptDataUri });
 }
 
+const ReceiptImageSchema = z.object({ receiptDataUri: z.string().max(8_000_000) });
 const receiptPrompt = ai.definePrompt({
   name: 'receiptPrompt',
-  input: {schema: ScanReceiptInputSchema},
+  input: {schema: ReceiptImageSchema},
   output: {schema: ScanReceiptOutputSchema},
   prompt: `You are an AI assistant specialized in extracting information from receipts.
   Given an image of a receipt, extract the following information:
@@ -52,7 +57,7 @@ const receiptPrompt = ai.definePrompt({
 const scanReceiptFlow = ai.defineFlow(
   {
     name: 'scanReceiptFlow',
-    inputSchema: ScanReceiptInputSchema,
+    inputSchema: ReceiptImageSchema,
     outputSchema: ScanReceiptOutputSchema,
   },
   async input => {

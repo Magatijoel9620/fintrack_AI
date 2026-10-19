@@ -1,31 +1,23 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "TODO: Add your api key",
-  authDomain: "TODO: Add your auth domain",
-  projectId: "TODO: Add your project id",
-  storageBucket: "TODO: Add your storage bucket",
-  messagingSenderId: "TODO: Add your messaging sender id",
-  appId: "TODO: Add your app id",
-  measurementId: "TODO: Add your measurement id"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? "",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? "",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "",
 };
 
-// Initialize Firebase
-let app;
-// if (!getApps().length) {
-//     app = initializeApp(firebaseConfig);
-// } else {
-//     app = getApps()[0];
-// }
-
-// export const auth = getAuth(app);
-// export const db = getFirestore(app);
-export const auth = {} as any;
-export const db = {} as any;
+export const isFirebaseConfigured = Boolean(
+  firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId &&
+  firebaseConfig.storageBucket && firebaseConfig.messagingSenderId && firebaseConfig.appId
+);
+export const firebaseApp: FirebaseApp | undefined = isFirebaseConfigured
+  ? (getApps()[0] ?? initializeApp(firebaseConfig))
+  : undefined;
+export const auth: Auth | null = firebaseApp ? getAuth(firebaseApp) : null;
+export const db: Firestore | null = firebaseApp ? getFirestore(firebaseApp) : null;
+export const googleProvider = new GoogleAuthProvider();

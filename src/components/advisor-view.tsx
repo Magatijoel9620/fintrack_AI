@@ -4,6 +4,7 @@ import React, { useState, useContext, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AppContext } from "@/context/app-context";
+import { useAuth } from "@/context/auth-context";
 import { askFinancialAdvisor } from "@/ai/flows/ask-financial-advisor";
 import { Loader2, Send, Bot } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -20,11 +21,7 @@ type Message = {
 
 export default function AdvisorView() {
   const { expenses } = useContext(AppContext);
-  // const [user] = useAuthState(auth);
-  const user = {
-    displayName: "User",
-    photoURL: "https://placehold.co/40x40.png"
-  };
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conversation, setConversation] = useState<Message[]>([]);
@@ -44,7 +41,10 @@ export default function AdvisorView() {
     const relevantExpenses = expenses.slice(0, 50).map(e => ({ category: e.category, amount: e.amount, merchant: e.merchant, date: e.date }));
 
     try {
+        if (!user) throw new Error("Please sign in again to use the financial advisor.");
+        const idToken = await user.getIdToken();
         const response = await askFinancialAdvisor({
+            idToken,
             question: input,
             expenses: JSON.stringify(relevantExpenses),
             history: conversation.slice(-10), // Pass last 10 messages
@@ -107,8 +107,8 @@ export default function AdvisorView() {
                             </div>
                             {message.role === 'user' && user && (
                                 <Avatar className="w-8 h-8 border">
-                                     <AvatarImage src={user.photoURL ?? "https://placehold.co/40x40.png"} alt="User" data-ai-hint="person avatar" />
-                                    <AvatarFallback>{user.displayName?.charAt(0) ?? 'U'}</AvatarFallback>
+                                     <AvatarImage src={user?.photoURL ?? undefined} alt="User" data-ai-hint="person avatar" />
+                                    <AvatarFallback>{user?.displayName?.charAt(0) ?? 'U'}</AvatarFallback>
                                 </Avatar>
                             )}
                         </div>

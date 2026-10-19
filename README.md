@@ -1,105 +1,43 @@
-# FinTrack AI
+# Inventory Tracker — Beta 6 Uplift
 
-FinTrack AI is an intelligent personal finance application designed to help you take full control of your money. It leverages AI to provide smart insights, automated expense tracking, and personalized financial advice.
+A Firebase-authenticated inventory and small-business operations app with a refined lavender/ink design system, business administration, accounting, Gemini-assisted inventory analysis, and a 21-day trial foundation.
 
-## ✨ Key Features
+## Stack
+- Next.js 15 / React 18 / TypeScript
+- Firebase Authentication + Cloud Firestore
+- Gemini through Genkit server-side flows
+- Tailwind CSS, Radix UI primitives, Recharts
 
-- **Dashboard:** Get a quick overview of your financial health, including total spending, remaining budget, and spending by category.
-- **Expense Tracking:** Manually add, edit, or delete expenses.
-- **AI-Powered Receipt Scanning:** Automatically extract expense details by uploading a receipt image.
-- **Budget Management:** Set a monthly budget and track your progress in real-time.
-- **AI Financial Advisor:** Chat with an AI assistant to get personalized financial advice based on your spending habits.
-- **Multi-Currency Support:** Switch between various currencies (USD, EUR, GBP, JPY, KSH).
-- **Dark Mode:** A sleek, eye-friendly dark theme for comfortable use in any lighting.
-- **Progressive Web App (PWA):** Installable on any device for a native-app experience with offline capabilities.
-- **Admin Panel:** A dedicated section for application management.
+## Setup
+1. Copy `.env.example` to `.env.local`.
+2. Fill the Firebase Web App values from Firebase Console.
+3. Set `GOOGLE_GENAI_API_KEY` server-side for Gemini AI. Never expose it as a `NEXT_PUBLIC_` variable.
+4. Publish `firestore.rules` in the Firebase Console.
+5. Run `npm install`, `npm run typecheck`, `npm test`, and `npm run build`.
 
-## 🚀 Tech Stack
+## Security and rollout notes
+- Demo mode has been removed. The app requires Firebase Authentication.
+- Firebase web config is loaded from environment variables.
+- Firestore rules isolate business data, apply role-aware write permissions, and block operational writes after the 21-day trial unless the subscription is marked active.
+- A subscription is initialized on first business creation. Billing checkout is not yet connected; plan cards are informational and no payment is simulated.
+- `/platform-admin` requires the Firebase Auth custom claim `platformAdmin: true` and reads aggregate-only `platformMetrics` documents. It does not query tenant business records or personal/transaction data.
+- Platform metrics must be produced by trusted server-side jobs (Cloud Functions/Cloud Run/Admin SDK). Client writes to platform metric documents are denied.
+- The team UI grants access by Firebase UID. Production email invitations should be handled by a trusted Cloud Function using the Firebase Admin SDK.
+- Existing businesses created before subscription fields existed need a controlled migration before stricter rules are published. Review Firestore rules in a staging project first.
+- Gemini receives bounded product and transaction summaries for each prompt. Review your privacy policy and user consent before production use.
 
-- **Framework:** [Next.js](https://nextjs.org/) (with App Router)
-- **AI:** [Google's Gemini model via Genkit](https://firebase.google.com/docs/genkit)
-- **UI:** [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/)
-- **Styling:** [Tailwind CSS](https://tailwindcss.com/), [ShadCN UI](https://ui.shadcn.com/)
-- **State Management:** React Context API
-- **Form Handling:** [React Hook Form](https://react-hook-form.com/) & [Zod](https://zod.dev/)
-- **Charts:** [Recharts](https://recharts.org/)
+## P15 repair notes
+See [REPAIR_NOTES_P15.md](./REPAIR_NOTES_P15.md) for the changes made, validation boundaries, and remaining role/migration blockers. Do not deploy Firestore rules to production without staging Emulator Suite coverage.
 
-## 🏁 Getting Started
+## Routes
+- `/` — Firebase sign-in / normal app entry
+- `/dashboard?view=business-admin` — business administration hub
+- `/dashboard?view=subscriptions` — trial and plan status
+- `/platform-admin` — protected platform operations dashboard
 
-Follow these instructions to get a copy of the project up and running on your local machine for development and testing purposes.
-
-### Prerequisites
-
-- [Node.js](https://nodejs.org/en) (v20 or later recommended)
-- [npm](https://www.npmjs.com/) or [yarn](https://yarnpkg.com/)
-
-### Installation
-
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/fintrack-ai.git
-    cd fintrack-ai
-    ```
-
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
-
-3.  **Set up environment variables:**
-    Create a `.env` file in the root of the project and add your Firebase and Genkit API keys.
-    ```
-    # Add your Gemini API Key for Genkit
-    GEMINI_API_KEY=your_gemini_api_key_here
-    ```
-
-### Running the Application
-
-To run the application in development mode, you'll need to run both the Next.js frontend and the Genkit AI server.
-
-1.  **Start the Next.js development server:**
-    ```bash
-    npm run dev
-    ```
-    This will start the frontend on `http://localhost:3000`.
-
-2.  **Start the Genkit server (in a separate terminal):**
-    ```bash
-    npm run genkit:dev
-    ```
-    This starts the AI flows locally, which the Next.js app will call.
-
-## ⚙️ Available Scripts
-
-- `npm run dev`: Starts the Next.js development server with Turbopack.
-- `npm run genkit:dev`: Starts the Genkit development server.
-- `npm run genkit:watch`: Starts the Genkit server in watch mode.
-- `npm run build`: Builds the application for production.
-- `npm run start`: Starts a production server.
-- `npm run lint`: Lints the project files using Next.js's built-in ESLint configuration.
-- `npm run typecheck`: Runs TypeScript to check for type errors.
-
-## 📂 Project Structure
-
+## Tests
+```bash
+npm test
+npm run typecheck
+npm run build
 ```
-.
-├── src
-│   ├── ai                # Genkit AI flows and configuration
-│   ├── app               # Next.js App Router pages and layouts
-│   ├── components        # Reusable React components (UI, views)
-│   ├── context           # React Context for global state
-│   ├── hooks             # Custom React hooks
-│   ├── lib               # Utility functions and Firebase config
-│   └── types             # TypeScript type definitions
-├── public                # Static assets (icons, manifest)
-└── ...                   # Configuration files
-```
-
-## 🔐 Firebase Configuration
-
-The application is set up with a skeleton Firebase configuration in `src/lib/firebase.ts`. To enable user authentication and persistent cloud storage, you will need to:
-
-1.  Create a Firebase project in the [Firebase Console](https://console.firebase.google.com/).
-2.  Register your web app and obtain your `firebaseConfig` object.
-3.  Fill in the configuration details in `src/lib/firebase.ts`.
-4.  Uncomment the Firebase-related code in the application to enable authentication and data persistence.

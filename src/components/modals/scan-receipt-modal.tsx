@@ -18,9 +18,11 @@ import { Loader2, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { Expense } from "@/types";
+import { useAuth } from "@/context/auth-context";
 
 export function ScanReceiptModal() {
   const { openScanReceipt, setOpenScanReceipt, setOpenAddExpense, setExpenseToEdit } = useContext(AppContext);
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -49,7 +51,9 @@ export function ScanReceiptModal() {
     reader.onload = async () => {
       try {
         const receiptDataUri = reader.result as string;
-        const result = await scanReceipt({ receiptDataUri });
+        if (!user) throw new Error("Please sign in again to scan receipts.");
+        const idToken = await user.getIdToken();
+        const result = await scanReceipt({ idToken, receiptDataUri });
 
         setExpenseToEdit({
           id: '', // Empty id signifies a new expense from a scan

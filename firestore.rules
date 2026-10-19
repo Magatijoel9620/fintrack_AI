@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function platformAdmin() { return signedIn() && request.auth.token.platformAdmin == true; }
+    function businessPath(businessId) { return /databases/$(database)/documents/businesses/$(businessId); }
+    function memberPath(businessId) { return /databases/$(database)/documents/businesses/$(businessId)/members/$(request.auth.uid); }
+    function member(businessId) { return signedIn() && exists(memberPath(businessId)); }
+    function owner(businessId) { return signedIn() && exists(businessPath(businessId)) && get(businessPath(businessId)).data.ownerId == request.auth.uid; }
+    function role(businessId) { return member(businessId) ? get(memberPath(businessId)).data.role : ''; }
+    function manager(businessId) { return role(businessId) in ['owner', 'manager']; }
+    function inventoryEditor(businessId) { return role(businessId) in ['owner', 'manager', 'stock_clerk']; }
+    function transactionClerk(businessId) { return role(businessId) in ['owner', 'manager', 'cashier']; }
+    function activeSubscription(businessId) {
+      return exists(businessPath(businessId)) && (
+        get(businessPath(businessId)).data.subscription.status == 'active' ||
+        (get(businessPath(businessId)).data.subscription.status == 'trialing' &&
+         get(businessPath(businessId)).data.subscription.trialEndsAt > request.time)
+      );
+    }
+    match /businesses/{businessId} {
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid && request.resource.data.subscription.status == 'trialing' && request.resource.data.subscription.trialEndsAt > request.time && request.resource.data.subscription.trialEndsAt <= request.time + duration.value(21, 'd');
+      allow get: if (signedIn() && (
+        businessId == request.auth.uid ||
+        !exists(businessPath(businessId)) ||
+        member(businessId) ||
+        owner(businessId)
+      ));
+      allow list: if owner(businessId);
+      allow update: if owner(businessId) && request.resource.data.ownerId == resource.data.ownerId && request.resource.data.subscription == resource.data.subscription;
+      allow delete: if false;
+      match /members/{userId} {
+        allow read: if (signedIn() && userId == request.auth.uid) || owner(businessId);
+        allow create: if owner(businessId) && (
+          (userId == get(businessPath(businessId)).data.ownerId && request.resource.data.role == 'owner') ||
+          request.resource.data.role in ['manager', 'cashier', 'stock_clerk', 'viewer', 'staff']
+        );
+        allow update: if owner(businessId) && userId != get(businessPath(businessId)).data.ownerId
+          && request.resource.data.role in ['manager', 'cashier', 'stock_clerk', 'viewer', 'staff'];
+        allow delete: if owner(businessId) && userId != get(businessPath(businessId)).data.ownerId;
+      }
+      match /products/{id} { allow read: if member(businessId); allow create, update, delete: if inventoryEditor(businessId) && activeSubscription(businessId); }
+      match /categories/{id} { allow read: if member(businessId); allow create, update, delete: if inventoryEditor(businessId) && activeSubscription(businessId); }
+      match /suppliers/{id} { allow read: if member(businessId); allow create, update, delete: if manager(businessId) && activeSubscription(businessId); }
+      match /customers/{id} { allow read: if member(businessId); allow create, update, delete: if transactionClerk(businessId) && activeSubscription(businessId); }
+      match /sales/{id} { allow read: if member(businessId); allow create: if transactionClerk(businessId) && activeSubscription(businessId); allow update, delete: if manager(businessId) && activeSubscription(businessId); }
+      match /purchases/{id} { allow read: if member(businessId); allow create: if manager(businessId) && activeSubscription(businessId); allow update, delete: if manager(businessId) && activeSubscription(businessId); }
+      match /stockMovements/{id} { allow read: if member(businessId); allow create, update, delete: if inventoryEditor(businessId) && activeSubscription(businessId); }
+      match /payments/{id} { allow read: if member(businessId); allow create: if transactionClerk(businessId) && activeSubscription(businessId); allow update, delete: if manager(businessId) && activeSubscription(businessId); }
+    }
+    match /users/{userId} { allow read, write: if signedIn() && request.auth.uid == userId; }
+    // Platform admin reads aggregate metrics only, never tenant business records.
+    match /platformMetrics/{documentId} { allow read: if platformAdmin(); allow write: if false; }
+    match /platformAudit/{documentId} { allow read: if platformAdmin(); allow write: if false; }
+    match /platformSettings/{documentId} { allow read: if platformAdmin(); allow write: if false; }
+  }
+}
