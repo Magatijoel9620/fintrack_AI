@@ -186,9 +186,7 @@ export default function Login() {
                     </>
                   ) : (
                     <p className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
-                      Firebase is not configured. Copy `.env.example` to
-                      `.env.local`, fill in your Firebase Web App settings and
-                      restart the development server.
+                      Firebase is not configured.
                     </p>
                   )}
                 </form>
