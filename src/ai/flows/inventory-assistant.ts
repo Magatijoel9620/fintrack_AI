@@ -1,8 +1,8 @@
-'use server';
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
-import { applicationDefault, getApps, initializeApp } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
+"use server";
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
+import { applicationDefault, getApps, initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 const Input = z.object({
   idToken: z.string().min(100).max(6000),
   businessId: z.string().min(1).max(128),
@@ -18,29 +18,63 @@ const ModelInput = z.object({
   purchases: z.string().max(20000),
 });
 const Output = z.object({ answer: z.string().min(1).max(6000) });
-export async function inventoryAssistant(input: z.infer<typeof Input>): Promise<z.infer<typeof Output>> {
+export async function inventoryAssistant(
+  input: z.infer<typeof Input>,
+): Promise<z.infer<typeof Output>> {
   const validation = Input.safeParse(input);
-  if (!validation.success) throw new Error("Please refresh the page and try asking your question again.");
+  if (!validation.success)
+    throw new Error(
+      "Please refresh the page and try asking your question again.",
+    );
   const parsed = validation.data;
-  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  if (!projectId) throw new Error('The assistant is temporarily unavailable. Please try again later.');
-  const app = getApps().find(existing => existing.name === 'inventory-admin') ??
-    initializeApp({ credential: applicationDefault(), projectId }, 'inventory-admin');
+  const projectId =
+    process.env.FIREBASE_ADMIN_PROJECT_ID ||
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  if (!projectId)
+    throw new Error(
+      "The assistant is temporarily unavailable. Please try again later.",
+    );
+  const app =
+    getApps().find((existing) => existing.name === "inventory-admin") ??
+    initializeApp(
+      { credential: applicationDefault(), projectId },
+      "inventory-admin",
+    );
   let decoded;
   try {
     decoded = await getAuth(app).verifyIdToken(parsed.idToken);
   } catch {
     throw new Error("Your session needs refreshing. Please sign in again.");
   }
-  if (decoded.uid !== parsed.businessId) throw new Error("You don't have access to this business data.");
+  if (decoded.uid !== parsed.businessId)
+    throw new Error("You don't have access to this business data.");
+  if (
+    !process.env.GOOGLE_GENAI_API_KEY &&
+    !process.env.GEMINI_API_KEY &&
+    !process.env.GOOGLE_API_KEY
+  )
+    throw new Error(
+      "The assistant is not configured yet. Please contact your administrator.",
+    );
   try {
-    return await flow({ question: parsed.question, inventory: parsed.inventory, sales: parsed.sales, purchases: parsed.purchases });
-  } catch {
-    throw new Error("The assistant couldn't complete that analysis. Please try again shortly.");
+    return await flow({
+      question: parsed.question,
+      inventory: parsed.inventory,
+      sales: parsed.sales,
+      purchases: parsed.purchases,
+    });
+  } catch (error) {
+    console.error(
+      "inventoryAssistant flow failed:",
+      error instanceof Error ? error.message : "Unknown error",
+    );
+    throw new Error(
+      "The assistant couldn't complete that analysis. Please try again shortly.",
+    );
   }
 }
 const prompt = ai.definePrompt({
-  name: 'inventoryAssistantPrompt',
+  name: "inventoryAssistantPrompt",
   input: { schema: ModelInput },
   output: { schema: Output },
   prompt: `You are the practical inventory and small-business operations analyst for Inventory Tracker.
@@ -51,8 +85,16 @@ Inventory JSON: {{{inventory}}}
 Sales JSON: {{{sales}}}
 Purchases JSON: {{{purchases}}}`,
 });
-const flow = ai.defineFlow({ name: 'inventoryAssistantFlow', inputSchema: ModelInput, outputSchema: Output }, async input => {
-  const result = await prompt(input);
-  if (!result.output) throw new Error('Gemini returned no structured answer.');
-  return result.output;
-});
+const flow = ai.defineFlow(
+  {
+    name: "inventoryAssistantFlow",
+    inputSchema: ModelInput,
+    outputSchema: Output,
+  },
+  async (input) => {
+    const result = await prompt(input);
+    if (!result.output)
+      throw new Error("Gemini returned no structured answer.");
+    return result.output;
+  },
+);
