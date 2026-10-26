@@ -35,6 +35,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CURRENCY_SYMBOLS } from "@/types";
+import { useToast } from "@/hooks/use-toast";
 
 const expenseSchema = z.object({
   amount: z.coerce.number().min(0.01, "Amount must be greater than 0."),
@@ -56,6 +57,7 @@ const categories = [
 
 export function AddExpenseModal() {
   const { openAddExpense, setOpenAddExpense, addExpense, updateExpense, expenseToEdit, setExpenseToEdit, currency } = useContext(AppContext);
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof expenseSchema>>({
     resolver: zodResolver(expenseSchema),
@@ -82,16 +84,17 @@ export function AddExpenseModal() {
     }
   }, [expenseToEdit, form, isEditing]);
 
-  const onSubmit = (values: z.infer<typeof expenseSchema>) => {
+  const onSubmit = async (values: z.infer<typeof expenseSchema>) => {
     const expenseData = { ...values, date: format(values.date, "yyyy-MM-dd") };
-    if (isEditing && expenseToEdit) {
-        updateExpense({ ...expenseData, id: expenseToEdit.id });
-    } else {
-        addExpense(expenseData);
+    try {
+      if (isEditing && expenseToEdit) await updateExpense({ ...expenseData, id: expenseToEdit.id });
+      else await addExpense(expenseData);
+      form.reset();
+      setExpenseToEdit(null);
+      setOpenAddExpense(false);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Expense was not saved", description: error instanceof Error ? error.message : "Check your connection and retry." });
     }
-    form.reset();
-    setExpenseToEdit(null);
-    setOpenAddExpense(false);
   };
   
   const handleOpenChange = (open: boolean) => {

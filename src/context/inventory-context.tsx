@@ -109,7 +109,7 @@ interface InventoryContextValue extends State {
     patch: Partial<
       Pick<
         Business,
-        "name" | "phone" | "email" | "address" | "taxNumber" | "logoUrl"
+        "name" | "phone" | "email" | "address" | "taxNumber" | "logoUrl" | "currency"
       >
     >,
   ) => Promise<void>;
@@ -126,6 +126,11 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const businessId = user?.uid ?? "";
   const firebaseMode = Boolean(db && user);
 
+  // Never let one account's previous in-memory records flash in another workspace.
+  useEffect(() => {
+    setState(emptyState());
+  }, [businessId]);
+
   // No local/demo data mode: authenticated Firestore is the source of truth.
   useEffect(() => {
     if (!user || firebaseMode) {
@@ -133,6 +138,37 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       return;
     }
   }, [user, firebaseMode]);
+
+  // Restore local workspace data when cloud mode is unavailable. Previously the
+  // app wrote local data but never hydrated it, so a refresh looked like data loss.
+  useEffect(() => {
+    if (firebaseMode || typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(LOCAL_KEY(businessId));
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<State>;
+        setState((current) => ({
+          ...current,
+          ...parsed,
+          business: { ...current.business, ...(parsed.business ?? {}) },
+          products: Array.isArray(parsed.products) ? parsed.products : [],
+          suppliers: Array.isArray(parsed.suppliers) ? parsed.suppliers : [],
+          customers: Array.isArray(parsed.customers) ? parsed.customers : [],
+          movements: Array.isArray(parsed.movements) ? parsed.movements : [],
+          sales: Array.isArray(parsed.sales) ? parsed.sales : [],
+          purchases: Array.isArray(parsed.purchases) ? parsed.purchases : [],
+          payments: Array.isArray(parsed.payments) ? parsed.payments : [],
+        }));
+      } else {
+        setState(emptyState());
+      }
+    } catch (error) {
+      console.error("Local inventory restore failed", error);
+      setState(emptyState());
+      toast({ variant: "destructive", title: "Local data could not be restored", description: "Stored workspace data could not be read in this browser." });
+    }
+    setLoading(false);
+  }, [firebaseMode, businessId, toast]);
 
   // Firebase becomes the source of truth for authenticated users.
   useEffect(() => {
@@ -321,8 +357,14 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     async (
       input: Omit<Product, "id" | "businessId" | "createdAt" | "updatedAt">,
     ) => {
+      if (!input.name?.trim() || !input.sku?.trim()) throw new Error("Product name and SKU are required.");
+      if (![input.costPrice, input.sellingPrice, input.quantity, input.reorderLevel].every((n) => Number.isFinite(n) && n >= 0)) throw new Error("Prices, stock and reorder level must be valid non-negative numbers.");
+      if (input.sellingPrice < 0 || input.costPrice < 0) throw new Error("Prices cannot be negative.");
+      const normalizedSku = input.sku.trim();
+      if (state.products.some((item) => item.sku.trim().toLowerCase() === normalizedSku.toLowerCase())) throw new Error("That SKU already exists. Use a unique SKU.");
+      if (input.barcode?.trim() && state.products.some((item) => item.barcode?.trim() === input.barcode?.trim())) throw new Error("That barcode is already assigned to another product.");
       const p: Product = {
-        ...input,
+        ...input, name: input.name.trim(), sku: normalizedSku,
         id: uid(),
         businessId,
         createdAt: now(),
@@ -389,34 +431,39 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       });
       return p;
     },
-    [businessId, firebaseMode, persistLocal, toast, user?.uid],
+    [businessId, firebaseMode, persistLocal, toast, user?.uid, state.products],
   );
 
   const updateProduct = useCallback(
     async (p: Product) => {
-      const updated = { ...p, updatedAt: now() };
+      if (!p.id || !p.name?.trim() || !p.sku?.trim()) throw new Error("Product name and SKU are required.");
+      if (![p.costPrice, p.sellingPrice, p.quantity, p.reorderLevel].every((n) => Number.isFinite(n) && n >= 0)) throw new Error("Prices, stock and reorder level must be valid non-negative numbers.");
+      if (state.products.some((item) => item.id !== p.id && item.sku.trim().toLowerCase() === p.sku.trim().toLowerCase())) throw new Error("That SKU already exists. Use a unique SKU.");
+      if (p.barcode?.trim() && state.products.some((item) => item.id !== p.id && item.barcode?.trim() === p.barcode?.trim())) throw new Error("That barcode is already assigned to another product.");
+      const updated = { ...p, name: p.name.trim(), sku: p.sku.trim(), updatedAt: now() };
       const firestore = db;
       const previous = state.products.find((x) => x.id === p.id);
+      if (!previous) throw new Error("Product not found. Refresh the inventory and try again.");
       const delta = previous ? updated.quantity - previous.quantity : 0;
       if (firebaseMode && firestore) {
-        const batch = writeBatch(firestore);
-        batch.set(doc(firestore, "businesses", businessId, "products", p.id), updated);
-        if (previous && delta !== 0) {
-          const movement: StockMovement = {
-            id: uid(),
-            businessId,
-            productId: p.id,
-            productName: p.name,
-            type: "adjustment",
-            quantity: delta,
-            reference: "Product edit stock adjustment",
-            note: "Quantity changed from product editor",
-            createdAt: now(),
-            createdBy: user?.uid,
-          };
-          batch.set(doc(firestore, "businesses", businessId, "stockMovements", movement.id), movement);
-        }
-        await batch.commit();
+        await runTransaction(firestore, async (tx) => {
+          const productRef = doc(firestore, "businesses", businessId, "products", p.id);
+          const snap = await tx.get(productRef);
+          if (!snap.exists()) throw new Error("Product not found. Refresh the inventory and try again.");
+          const currentQuantity = Number(snap.data()?.quantity ?? 0);
+          const delta = updated.quantity - currentQuantity;
+          tx.update(productRef, updated);
+          if (delta !== 0) {
+            const movement: StockMovement = {
+              id: uid(), businessId, productId: p.id, productName: updated.name,
+              type: "adjustment", quantity: delta,
+              reference: "Product edit stock adjustment",
+              note: "Quantity changed from product editor",
+              createdAt: now(), createdBy: user?.uid,
+            };
+            tx.set(doc(firestore, "businesses", businessId, "stockMovements", movement.id), movement);
+          }
+        });
       } else
         setState((s) => {
           const movement: StockMovement | null = previous && delta !== 0 ? {
@@ -440,6 +487,16 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const deleteProduct = useCallback(
     async (id: string) => {
       const p = state.products.find((x) => x.id === id);
+      if (!p) throw new Error("Product not found. Refresh the inventory and try again.");
+      const hasHistory = state.sales.some((sale) => sale.items.some((item) => item.productId === id)) ||
+        state.purchases.some((purchase) => purchase.items.some((item) => item.productId === id)) ||
+        state.movements.some((movement) => movement.productId === id);
+      if (hasHistory) {
+        // Preserve referential history: archived products remain available in old invoices/reports.
+        await updateProduct({ ...p, isActive: false });
+        toast({ title: "Product archived", description: `${p.name} has transaction history, so it was archived instead of permanently deleted.` });
+        return;
+      }
       const firestore = db;
       if (firebaseMode && firestore)
         await deleteDoc(
@@ -460,7 +517,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         description: p?.name ?? "Product",
       });
     },
-    [businessId, firebaseMode, persistLocal, state.products, toast],
+    [businessId, firebaseMode, persistLocal, state.products, state.sales, state.purchases, state.movements, toast, updateProduct],
   );
 
   const adjustStock = useCallback(
@@ -547,6 +604,10 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     async (input: Omit<Sale, "id" | "businessId" | "createdAt">) => {
       if (!input.items.length)
         throw new Error("A sale needs at least one item");
+      if (input.items.some((item) => !item.productId || !Number.isFinite(item.quantity) || item.quantity <= 0 || !Number.isFinite(item.unitPrice) || item.unitPrice < 0))
+        throw new Error("Each sale item must have a product, positive quantity and valid non-negative unit price.");
+      if (![input.subtotal, input.discount, input.tax, input.total, input.amountPaid].every((n) => Number.isFinite(n) && n >= 0))
+        throw new Error("Sale totals and payment amount must be valid non-negative numbers.");
       const saleItems = input.items.map((item) => ({
         ...item,
         unitCost: Number(
@@ -659,6 +720,10 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     async (input: Omit<Purchase, "id" | "businessId" | "createdAt">) => {
       if (!input.items.length)
         throw new Error("A purchase needs at least one item");
+      if (input.items.some((item) => !item.productId || !Number.isFinite(item.quantity) || item.quantity <= 0 || !Number.isFinite(item.unitCost) || item.unitCost < 0 || !Number.isFinite(item.total) || item.total < 0))
+        throw new Error("Each purchase item must have a product, positive quantity and valid non-negative cost and total.");
+      if (![input.subtotal, input.tax, input.total, input.amountPaid ?? 0].every((n) => Number.isFinite(n) && n >= 0))
+        throw new Error("Purchase totals and payment amount must be valid non-negative numbers.");
       const purchase: Purchase = {
         ...input,
         id: uid(),
@@ -845,7 +910,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       patch: Partial<
         Pick<
           Business,
-          "name" | "phone" | "email" | "address" | "taxNumber" | "logoUrl"
+          "name" | "phone" | "email" | "address" | "taxNumber" | "logoUrl" | "currency"
         >
       >,
     ) => {

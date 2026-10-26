@@ -9,9 +9,10 @@ import { useInventory } from "@/context/inventory-context";
 import { Currency } from "@/types";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { firebaseApp } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SettingsView() {
- const { business,setCurrency,updateBusiness }=useInventory();
+ const { business,setCurrency,updateBusiness }=useInventory(); const {toast}=useToast();
  const [form,setForm]=useState({name:business.name,phone:business.phone||"",email:business.email||"",address:business.address||"",taxNumber:business.taxNumber||"",logoUrl:business.logoUrl||""});
  const [currency,setCurrencyLocal]=useState<Currency>(business.currency); const [saving,setSaving]=useState(false);
  const [logoUploading,setLogoUploading]=useState(false);
@@ -22,7 +23,7 @@ export default function SettingsView() {
   if(file.size>2*1024*1024){setLogoError("Choose an image smaller than 2 MB.");return;}
   setLogoUploading(true);try{const storage=getStorage(firebaseApp);const ext=(file.name.split(".").pop()||"png").toLowerCase().replace(/[^a-z0-9]/g,"");const path=`business-logos/${business.id}/logo-${Date.now()}.${ext||"png"}`;const objectRef=ref(storage,path);await uploadBytes(objectRef,file,{contentType:file.type});const logoUrl=await getDownloadURL(objectRef);setForm(prev=>({...prev,logoUrl}));}catch(e){setLogoError("Logo upload failed. Check Firebase Storage setup and storage rules.");}finally{setLogoUploading(false);}};
  useEffect(()=>{setForm({name:business.name,phone:business.phone||"",email:business.email||"",address:business.address||"",taxNumber:business.taxNumber||"",logoUrl:business.logoUrl||""});setCurrencyLocal(business.currency)},[business]);
- const save=async()=>{if(!form.name.trim()){setLogoError("Business name is required.");return;}setSaving(true);try{await updateBusiness({...form,name:form.name.trim(),phone:form.phone.trim(),email:form.email.trim(),address:form.address.trim(),taxNumber:form.taxNumber.trim()});await setCurrency(currency)}finally{setSaving(false)}};
+ const save=async()=>{if(saving)return;if(!form.name.trim()){setLogoError("Business name is required.");return;}if(form.email.trim()&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())){setLogoError("Enter a valid business email address.");return;}setSaving(true);setLogoError("");try{await updateBusiness({...form,name:form.name.trim(),phone:form.phone.trim(),email:form.email.trim(),address:form.address.trim(),taxNumber:form.taxNumber.trim(),currency});toast({title:"Settings saved",description:"Your business profile and currency have been updated."})}catch(error){setLogoError(error instanceof Error?error.message:"Settings could not be saved. Check your connection and permissions.");toast({variant:"destructive",title:"Settings were not saved",description:error instanceof Error?error.message:"Check your connection and permissions."})}finally{setSaving(false)}};
  return <div className="max-w-3xl space-y-6"><Card><CardHeader><CardTitle>Business profile</CardTitle></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2">
   <div className="sm:col-span-2"><Label>Business name</Label><Input className="mt-1" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></div>
   <div><Label>Phone</Label><Input className="mt-1" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="+254…"/></div>

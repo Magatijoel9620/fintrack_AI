@@ -47,6 +47,7 @@ service cloud.firestore {
       match /purchases/{id} { allow read: if member(businessId); allow create: if manager(businessId) && activeSubscription(businessId); allow update, delete: if manager(businessId) && activeSubscription(businessId); }
       match /stockMovements/{id} { allow read: if member(businessId); allow create, update, delete: if inventoryEditor(businessId) && activeSubscription(businessId); }
       match /payments/{id} { allow read: if member(businessId); allow create: if transactionClerk(businessId) && activeSubscription(businessId); allow update, delete: if manager(businessId) && activeSubscription(businessId); }
+      match /expenses/{id} { allow read: if member(businessId); allow create, update, delete: if manager(businessId) && activeSubscription(businessId); }
     }
     match /users/{userId} { allow read, write: if signedIn() && request.auth.uid == userId; }
     // Platform admin reads aggregate metrics only, never tenant business records.

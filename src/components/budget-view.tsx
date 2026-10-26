@@ -46,12 +46,13 @@ export default function BudgetView() {
     },
   });
 
-  const onSubmit = (values: z.infer<typeof budgetSchema>) => {
-    setBudget(values.budget);
+  const onSubmit = async (values: z.infer<typeof budgetSchema>) => {
+    try { await setBudget(values.budget);
     toast({
       title: "Budget Updated",
       description: `Your new monthly budget is ${currencySymbol}${values.budget.toFixed(2)}.`,
     });
+    } catch (error) { toast({ variant: "destructive", title: "Budget was not saved", description: error instanceof Error ? error.message : "Check your connection and retry." }); }
   };
 
   const totalSpending = useMemo(() => {
