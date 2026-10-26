@@ -29,6 +29,13 @@ type Metrics = {
   activeBusinesses?: number;
   trialingBusinesses?: number;
   suspendedBusinesses?: number;
+  totalCustomers?: number;
+  totalSuppliers?: number;
+  totalProducts?: number;
+  totalSales?: number;
+  totalPurchases?: number;
+  totalPayments?: number;
+  pendingPaymentRequests?: number;
   lastUpdated?: { toDate?: () => Date } | string;
   serviceStatus?: string;
 };
@@ -126,6 +133,15 @@ export default function PlatformAdminPage() {
     },
     { label: "Suspended businesses", value: metrics?.suspendedBusinesses, Icon: CircleAlert },
   ];
+  const relationCards = [
+    { label: "Customer records", value: metrics?.totalCustomers },
+    { label: "Supplier records", value: metrics?.totalSuppliers },
+    { label: "Products tracked", value: metrics?.totalProducts },
+    { label: "Sales recorded", value: metrics?.totalSales },
+    { label: "Purchases recorded", value: metrics?.totalPurchases },
+    { label: "Payments recorded", value: metrics?.totalPayments },
+    { label: "Payment requests pending review", value: metrics?.pendingPaymentRequests },
+  ];
   return (
     <main className="min-h-screen bg-muted/40 p-4 md:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -166,6 +182,22 @@ export default function PlatformAdminPage() {
             </Card>
           ))}
         </div>
+        <section aria-labelledby="customer-relations-heading" className="space-y-3">
+          <div>
+            <h2 id="customer-relations-heading" className="text-xl font-semibold">Customer & platform activity</h2>
+            <p className="text-sm text-muted-foreground">Cross-business totals only. Personal customer and transaction details remain private to each business.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {relationCards.map(({ label, value }) => (
+              <Card key={label} className="rounded-2xl">
+                <CardContent className="p-4">
+                  <p className="text-sm text-muted-foreground">{label}</p>
+                  <p className="mt-2 text-2xl font-semibold">{value?.toLocaleString() ?? "—"}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
         <div className="grid gap-4 lg:grid-cols-2">
           <Card className="rounded-2xl">
             <CardHeader>
@@ -216,8 +248,7 @@ export default function PlatformAdminPage() {
             <CardHeader>
               <CardTitle>Maintenance & support</CardTitle>
               <CardDescription>
-                Controls are deliberately read-only until a trusted server-side
-                admin API is configured.
+Platform controls remain read-only; aggregate counts are refreshed by a trusted scheduled backend job.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
