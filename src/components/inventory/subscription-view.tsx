@@ -151,7 +151,7 @@ export default function SubscriptionView() {
       items: [
         "Everything in Starter",
         "Advanced financial insights",
-        "Team workflows",
+        "Advanced business reporting",
       ],
     },
     {

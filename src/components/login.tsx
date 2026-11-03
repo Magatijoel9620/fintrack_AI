@@ -17,23 +17,30 @@ import { useToast } from "@/hooks/use-toast";
 import { friendlyAuthError } from "@/lib/friendly-errors";
 
 export default function Login() {
-  const { signIn, signUp, signInGoogle } = useAuth();
+  const { signIn, signUp, signInGoogle, resetPassword } = useAuth();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [register, setRegister] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setLoading(true);
     try {
-      if (register) await signUp(email, password);
-      else await signIn(email, password);
+      if (resetMode) {
+        await resetPassword(email);
+        toast({ title: "Password reset email sent", description: "Check your inbox for a secure password reset link." });
+        setResetMode(false);
+      } else if (register) {
+        await signUp(email, password);
+        toast({ title: "Verify your email", description: "We sent a verification link to your email address. Open it before continuing." });
+      } else await signIn(email, password);
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Authentication failed",
+        title: resetMode ? "Password reset failed" : register ? "Account creation failed" : "Authentication failed",
         description: friendlyAuthError(error),
       });
     } finally {
@@ -116,11 +123,11 @@ export default function Login() {
                 Your business, in focus
               </div>
               <h2 className="font-headline text-3xl font-bold tracking-tight">
-                {register ? "Create your workspace" : "Welcome back"}
+                {resetMode ? "Reset your password" : register ? "Create your workspace" : "Welcome back"}
               </h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                {register
-                  ? "Create an account to start your 21-day trial."
+                {resetMode ? "Enter the email address linked to your account and we’ll send a secure reset link." : register
+                  ? "Create an account to start your 21-day trial. We’ll send an email verification link."
                   : "Sign in to continue to your business workspace."}
               </p>
             </div>
@@ -128,7 +135,7 @@ export default function Login() {
             <Card className="border-0 shadow-none">
               <CardHeader className="px-0 pb-4">
                 <CardTitle className="text-base">
-                  {register ? "Create account" : "Sign in"}
+                  {resetMode ? "Password recovery" : register ? "Create account" : "Sign in"}
                 </CardTitle>
                 <CardDescription>
                   Your account keeps your workspace and business records
@@ -156,31 +163,26 @@ export default function Login() {
                           required
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <label
-                          className="text-sm font-medium"
-                          htmlFor="password"
-                        >
-                          Password
-                        </label>
-                        <Input
-                          id="password"
-                          type="password"
-                          autoComplete={
-                            register ? "new-password" : "current-password"
-                          }
-                          placeholder="At least 6 characters"
-                          value={password}
-                          onChange={(event) => setPassword(event.target.value)}
-                          minLength={6}
-                          required
-                        />
-                      </div>
+                      {!resetMode && (
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-medium" htmlFor="password">Password</label>
+                          <Input
+                            id="password"
+                            type="password"
+                            autoComplete={register ? "new-password" : "current-password"}
+                            placeholder="At least 6 characters"
+                            value={password}
+                            onChange={(event) => setPassword(event.target.value)}
+                            minLength={6}
+                            required
+                          />
+                        </div>
+                      )}
                       <Button className="mt-2 w-full" disabled={loading}>
                         {loading && (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         )}
-                        {register ? "Create account" : "Sign in"}
+                        {resetMode ? "Send reset link" : register ? "Create account" : "Sign in"}
                         <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
                     </>
@@ -193,6 +195,7 @@ export default function Login() {
 
                 {isFirebaseConfigured && (
                   <>
+                    {!resetMode && <>
                     <div className="relative py-1 text-center text-xs text-muted-foreground">
                       <span className="bg-card px-2">or continue with</span>
                     </div>
@@ -204,16 +207,16 @@ export default function Login() {
                     >
                       Continue with Google
                     </Button>
+                    </>}
+                    {!register && !resetMode && <p className="text-right text-sm"><button type="button" className="font-semibold text-primary hover:underline" onClick={() => setResetMode(true)}>Forgot password?</button></p>}
                     <p className="text-center text-sm text-muted-foreground">
-                      {register
-                        ? "Already have an account?"
-                        : "New to FinAI?"}{" "}
+                      {resetMode ? "Remembered your password?" : register ? "Already have an account?" : "New to FinAI?"}{" "}
                       <button
                         type="button"
                         className="font-semibold text-primary hover:underline"
-                        onClick={() => setRegister(!register)}
+                        onClick={() => { setResetMode(false); setRegister(resetMode ? false : !register); }}
                       >
-                        {register ? "Sign in" : "Create an account"}
+                        {resetMode ? "Return to sign in" : register ? "Sign in" : "Create an account"}
                       </button>
                     </p>
                   </>

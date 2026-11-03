@@ -52,8 +52,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const currency = business.currency || "KES";
 
   useEffect(() => {
-    // Wait for the inventory provider to finish creating/verifying the workspace
-    // and owner membership before subscribing to child collections.
+    // Wait for trusted workspace provisioning and owner verification before
+    // subscribing to business-scoped finance collections.
     if (firebaseConfiguredForUser && !cloudReady) {
       setLoading(true);
       return;

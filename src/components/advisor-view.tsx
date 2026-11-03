@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useContext, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { AppContext } from "@/context/app-context";
 import { useAuth } from "@/context/auth-context";
 import { askFinancialAdvisor } from "@/ai/flows/ask-financial-advisor";
 import { Loader2, Send, Bot } from "lucide-react";
@@ -20,7 +19,6 @@ type Message = {
 };
 
 export default function AdvisorView() {
-  const { expenses } = useContext(AppContext);
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,15 +36,13 @@ export default function AdvisorView() {
     setLoading(true);
     setError(null);
     
-    const relevantExpenses = expenses.slice(0, 50).map(e => ({ category: e.category, amount: e.amount, merchant: e.merchant, date: e.date }));
-
     try {
         if (!user) throw new Error("Please sign in again to use the financial advisor.");
         const idToken = await user.getIdToken();
         const response = await askFinancialAdvisor({
             idToken,
+            businessId: user.uid,
             question: input,
-            expenses: JSON.stringify(relevantExpenses),
             history: conversation.slice(-10), // Pass last 10 messages
         });
         const assistantMessage: Message = { role: 'assistant', content: response.answer };
@@ -83,7 +79,7 @@ export default function AdvisorView() {
         <Card className="flex-1 flex flex-col">
             <CardHeader>
                 <CardTitle>AI Financial Advisor</CardTitle>
-                <CardDescription>Ask me anything about your finances. I'll remember our conversation.</CardDescription>
+                <CardDescription>Ask me about your business spending and finance records. Recent messages are used as conversation context.</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
                 <ScrollArea className="flex-1 pr-4" ref={scrollAreaRef}>
