@@ -47,6 +47,8 @@ export default function AIView() {
         businessId: currentUser.uid,
         question: prompt,
       });
+      if (result.error) throw new Error(result.error);
+      if (!result.answer) throw new Error("The assistant returned an empty response. Please try again.");
       setAnswer(result.answer);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Please try again in a moment.";

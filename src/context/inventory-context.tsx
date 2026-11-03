@@ -301,7 +301,27 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
               const values = snap.docs.map((d) =>
                 mapper({ ...d.data(), id: d.id }),
               );
-              setState((s) => ({ ...s, [name]: values }) as State);
+              // Firestore collection snapshots have no guaranteed document order.
+              // Sort dated records client-side so newly written stock movements
+              // appear first immediately, without requiring a composite index.
+              const newestFirst = values.sort((a, b) => {
+                const readTime = (record: T) => {
+                  const value = (record as T & { createdAt?: unknown }).createdAt;
+                  if (value instanceof Date) return value.getTime();
+                  if (value && typeof value === "object" && "toDate" in value
+                    && typeof (value as { toDate?: unknown }).toDate === "function") {
+                    const date = (value as { toDate: () => Date }).toDate();
+                    return date instanceof Date ? date.getTime() : 0;
+                  }
+                  const parsed = Date.parse(String(value ?? ""));
+                  return Number.isFinite(parsed) ? parsed : 0;
+                };
+                return readTime(b) - readTime(a);
+              });
+              // The Firestore collection is named `stockMovements`, while the
+              // context intentionally exposes it as `movements` to the UI.
+              const stateKey = name === "stockMovements" ? "movements" : name;
+              setState((s) => ({ ...s, [stateKey]: newestFirst }) as State);
               setLoading(false);
             },
             (err) => {

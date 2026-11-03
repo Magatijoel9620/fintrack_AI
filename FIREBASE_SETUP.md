@@ -1,7 +1,7 @@
 # Firebase setup — Spark-compatible single-owner workspace
 
 ## Environment
-Copy `.env.example` to `.env.local` and populate the Firebase Web SDK settings. Set `GOOGLE_GENAI_API_KEY` and Firebase Admin credentials only in the server environment used by the Next.js hosting platform. Never expose server credentials through `NEXT_PUBLIC_` variables.
+Copy `.env.example` to `.env.local` and populate the Firebase Web SDK settings. Set `GOOGLE_GENAI_API_KEY` only in the server environment used by the Next.js hosting platform. For Firebase Admin, either provide workload identity/Application Default Credentials or add `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON` as a server-only secret containing the full Firebase service-account JSON object. `FIREBASE_ADMIN_PROJECT_ID` may also be set explicitly. Never put service-account data or the Gemini key in a `NEXT_PUBLIC_` variable. On Vercel, use a Production/Preview/Development server environment variable as appropriate; do not commit the JSON or place it in client code.
 
 ## Authentication and business ownership
 Enable Email/Password and/or Google in Firebase Authentication.
