@@ -5,11 +5,31 @@ import { cn } from "@/lib/utils"
 const Card = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
+>(({ className, onPointerMove, onPointerLeave, ...props }, ref) => (
   <div
     ref={ref}
+    data-finai-card="true"
+    onPointerMove={(event) => {
+      if (event.pointerType === "mouse" || event.pointerType === "pen") {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        event.currentTarget.style.setProperty("--finai-pointer-x", `${event.clientX - bounds.left}px`);
+        event.currentTarget.style.setProperty("--finai-pointer-y", `${event.clientY - bounds.top}px`);
+        const magnetX = ((event.clientX - bounds.left) / Math.max(1, bounds.width) - 0.5) * 2.4;
+        const magnetY = ((event.clientY - bounds.top) / Math.max(1, bounds.height) - 0.5) * 2.4;
+        event.currentTarget.style.setProperty("--finai-magnet-x", `${magnetX.toFixed(2)}px`);
+        event.currentTarget.style.setProperty("--finai-magnet-y", `${magnetY.toFixed(2)}px`);
+      }
+      onPointerMove?.(event);
+    }}
+    onPointerLeave={(event) => {
+      event.currentTarget.style.removeProperty("--finai-pointer-x");
+      event.currentTarget.style.removeProperty("--finai-pointer-y");
+      event.currentTarget.style.removeProperty("--finai-magnet-x");
+      event.currentTarget.style.removeProperty("--finai-magnet-y");
+      onPointerLeave?.(event);
+    }}
     className={cn(
-      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      "finai-card-surface rounded-lg border bg-card text-card-foreground shadow-sm",
       className
     )}
     {...props}

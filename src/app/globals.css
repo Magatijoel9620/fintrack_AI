@@ -74,62 +74,48 @@
   }
   * { @apply border-border; }
   body { @apply bg-background text-foreground; font-feature-settings: "ss01" on, "cv11" on; }
-  h1, h2, h3 { letter-spacing: -0.025em; }
+  html { scroll-behavior: smooth; }
+  h1, h2, h3 { letter-spacing: -0.035em; font-family: var(--font-manrope), sans-serif; }
+  h1 + p, h2 + p, h3 + p { animation: finai-subtitle-in 480ms 50ms both; }
 }
 
 
-/* Mobile-first app navigation: safe-area aware and sized for touch. */
+/* Responsive FinAI navigation and page motion. */
 .finai-bottom-nav { display: none; }
+.finai-main-content { scroll-behavior: smooth; }
+.finai-page-enter { animation: finai-page-enter 360ms cubic-bezier(.2,.7,.2,1) both; }
+.finai-card-surface { position: relative; isolation: isolate; transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, background-image 220ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .finai-card-surface:hover {
+    transform: translate3d(var(--finai-magnet-x, 0px), calc(var(--finai-magnet-y, 0px) - 2px), 0);
+    border-color: hsl(var(--primary) / .24);
+    box-shadow: 0 12px 28px hsl(var(--foreground) / .07);
+    background-image: radial-gradient(260px circle at var(--finai-pointer-x, 50%) var(--finai-pointer-y, 0%), hsl(var(--primary) / .075), transparent 74%);
+  }
+}
 @media (max-width: 767px) {
   .finai-bottom-nav {
-    position: fixed;
-    z-index: 45;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
-    border-top: 1px solid hsl(var(--border));
-    background: hsl(var(--background) / .96);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+    position: fixed; z-index: 45; left: 14px; right: 14px; bottom: calc(10px + env(safe-area-inset-bottom));
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px;
+    padding: 7px; border: 1px solid hsl(var(--border) / .9); border-radius: 999px;
+    background: hsl(var(--card) / .88); box-shadow: 0 12px 40px hsl(225 35% 8% / .18), inset 0 1px 0 hsl(var(--foreground) / .04);
+    backdrop-filter: blur(22px) saturate(145%); -webkit-backdrop-filter: blur(22px) saturate(145%);
   }
   .finai-bottom-nav button {
-    display: flex;
-    min-width: 0;
-    min-height: 48px;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    padding: 4px 1px;
-    border-radius: 12px;
-    color: hsl(var(--muted-foreground));
-    font-size: 10px;
-    font-weight: 600;
-    -webkit-tap-highlight-color: transparent;
+    display: flex; min-width: 0; min-height: 48px; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    padding: 4px 1px; border-radius: 999px; color: hsl(var(--muted-foreground)); font-size: 10px; font-weight: 650;
+    -webkit-tap-highlight-color: transparent; transition: color 180ms ease, background 180ms ease, transform 180ms ease;
   }
-  .finai-bottom-nav button.active {
-    color: hsl(var(--primary));
-    background: hsl(var(--primary) / .09);
-  }
-  .finai-bottom-nav button span {
-    overflow: hidden;
-    max-width: 100%;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .finai-mobile-more {
-    max-height: min(70dvh, 520px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
+  .finai-bottom-nav button:active { transform: scale(.94); }
+  .finai-bottom-nav button.active { color: hsl(var(--primary)); background: hsl(var(--primary) / .11); }
+  .finai-bottom-nav button span { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+  .finai-mobile-more { max-height: min(70dvh, 520px); overflow-y: auto; overscroll-behavior: contain; border-radius: 1.25rem; }
   .finai-mobile-more button { touch-action: manipulation; }
-  .finai-main-content {
-    padding-bottom: calc(6.75rem + env(safe-area-inset-bottom));
-  }
+  .finai-main-content { padding-bottom: calc(6.9rem + env(safe-area-inset-bottom)); }
 }
+
+@keyframes finai-page-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes finai-subtitle-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
 @keyframes finai-progress {
   0% { transform: translateX(-110%); }
@@ -137,9 +123,11 @@
   100% { transform: translateX(330%); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .finai-bottom-nav *, .finai-mobile-more *, [role="status"] * {
+  html, .finai-main-content { scroll-behavior: auto !important; }
+  .finai-bottom-nav *, .finai-mobile-more *, [role="status"] *, .finai-page-enter, h1, h2, h3, h1 + p, h2 + p, h3 + p {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
+  .finai-card-surface:hover { transform: none !important; }
 }
