@@ -5,134 +5,280 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // FinAI is deliberately single-account: the business document ID is the
-    // Firebase Auth UID. No memberships, invitations or user roles are used.
+    function businessPath(businessId) {
+      return /databases/$(database)/documents/businesses/$(businessId);
+    }
+
+    // One Firebase Auth UID owns exactly one business: businesses/{uid}.
+    // Legacy member subcollections are not used by this application.
     function businessOwner(businessId) {
       return signedIn()
         && request.auth.uid == businessId
-        && exists(/databases/$(database)/documents/businesses/$(businessId))
-        && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid
-        && get(/databases/$(database)/documents/businesses/$(businessId)).data.id == request.auth.uid;
+        && exists(businessPath(businessId))
+        && get(businessPath(businessId)).data.id == request.auth.uid
+        && get(businessPath(businessId)).data.ownerId == request.auth.uid;
     }
 
-    function activeSubscription(businessId) {
-      return exists(/databases/$(database)/documents/businesses/$(businessId))
+    // Missing legacy subscription metadata is not treated as proof of expiry.
+    // A known trial end blocks writes only after it has passed. Active paid
+    // subscriptions remain writable regardless of the old trial end date.
+    function subscriptionAllowsWrites(businessId) {
+      let business = get(businessPath(businessId)).data;
+      return !('subscription' in business)
+        || !(business.subscription is map)
+        || !('trialEndsAt' in business.subscription)
+        || !(business.subscription.trialEndsAt is timestamp)
+        || business.subscription.trialEndsAt > request.time
+        || ('status' in business.subscription && business.subscription.status == 'active');
+    }
+
+    function businessCanWrite(businessId) {
+      return businessOwner(businessId) && subscriptionAllowsWrites(businessId);
+    }
+
+    function validMoney(value) {
+      return value is number && value >= 0 && value <= 1000000000000;
+    }
+
+    function validText(value, maxLength) {
+      return value is string && value.size() > 0 && value.size() <= maxLength;
+    }
+
+    function validContact(data, businessId, id) {
+      return data.id == id
+        && data.businessId == businessId
+        && validText(data.name, 160)
+        && (!('balance' in data) || validMoney(data.balance));
+    }
+
+    function validProduct(data, businessId, id) {
+      return data.id == id
+        && data.businessId == businessId
+        && validText(data.name, 160)
+        && validText(data.sku, 80)
+        && validText(data.category, 80)
+        && data.unit in ['pcs', 'kg', 'g', 'litres', 'boxes', 'cartons', 'dozens', 'metres']
+        && validMoney(data.costPrice)
+        && validMoney(data.sellingPrice)
+        && validMoney(data.quantity)
+        && validMoney(data.reorderLevel)
+        && data.isActive is bool
+        && data.createdAt is string
+        && data.updatedAt is string;
+    }
+
+    function validMovementPayload(data, businessId, id) {
+      return data.id == id
+        && data.businessId == businessId
+        && validText(data.productId, 128)
+        && validText(data.productName, 160)
+        && data.type in ['opening', 'purchase', 'sale', 'stock-in', 'stock-out', 'adjustment', 'return', 'damage']
+        && data.quantity is number
+        && data.quantity != 0
+        && data.quantity >= -1000000000
+        && data.quantity <= 1000000000
+        && data.createdAt is string
         && (
-          get(/databases/$(database)/documents/businesses/$(businessId)).data.subscription.status == 'active'
-          || (
-            get(/databases/$(database)/documents/businesses/$(businessId)).data.subscription.status == 'trialing'
-            && get(/databases/$(database)/documents/businesses/$(businessId)).data.subscription.trialEndsAt > request.time
-          )
+          (data.type in ['opening', 'purchase', 'stock-in', 'return'] && data.quantity > 0)
+          || (data.type in ['sale', 'stock-out', 'damage'] && data.quantity < 0)
+          || data.type == 'adjustment'
         );
     }
 
-    function finiteNonNegative(value, maximum) {
-      return value is number && value >= 0 && value <= maximum;
+    function validSale(data, businessId, id) {
+      return data.id == id
+        && data.businessId == businessId
+        && validText(data.invoiceNumber, 80)
+        && data.items is list
+        && data.items.size() > 0
+        && data.items.size() <= 100
+        && validMoney(data.subtotal)
+        && validMoney(data.discount)
+        && data.discount <= data.subtotal
+        && validMoney(data.tax)
+        && validMoney(data.total)
+        && validMoney(data.amountPaid)
+        && data.amountPaid <= data.total
+        && data.paymentMethod in ['cash', 'mpesa', 'card', 'credit', 'other']
+        && data.createdAt is string
+        && data.stockMovementIds is list
+        && data.stockMovementIds.size() == data.items.size()
+        && data.stockMovementIds.size() <= 100;
     }
 
-    function validContact(data, businessId) {
-      return data.businessId == businessId
-        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 160
-        && finiteNonNegative(data.balance, 1000000000000);
+    function validPurchase(data, businessId, id) {
+      return data.id == id
+        && data.businessId == businessId
+        && validText(data.invoiceNumber, 80)
+        && data.items is list
+        && data.items.size() > 0
+        && data.items.size() <= 100
+        && validMoney(data.subtotal)
+        && validMoney(data.discount)
+        && data.discount <= data.subtotal
+        && validMoney(data.tax)
+        && validMoney(data.total)
+        && validMoney(data.amountPaid)
+        && data.amountPaid <= data.total
+        && data.paymentMethod in ['cash', 'mpesa', 'card', 'credit', 'other']
+        && data.createdAt is string
+        && data.stockMovementIds is list
+        && data.stockMovementIds.size() == data.items.size()
+        && data.stockMovementIds.size() <= 100;
     }
 
     match /businesses/{businessId} {
-      // Business provisioning is performed by the trusted Functions backend.
-      allow create: if false;
-      allow get: if businessOwner(businessId);
+      // A signed-in owner may read their own UID path even before it exists,
+      // which is required for first-login provisioning. Existing mismatched
+      // records remain inaccessible and are never overwritten by the client.
+      allow get: if signedIn()
+        && request.auth.uid == businessId
+        && (!exists(businessPath(businessId))
+          || (resource.data.id == request.auth.uid && resource.data.ownerId == request.auth.uid));
       allow list: if false;
+
+      // First workspace is created directly through Firestore on Spark. The
+      // client cannot mint an active/paid entitlement or extend an old trial.
+      allow create: if signedIn()
+        && request.auth.uid == businessId
+        && request.resource.data.id == request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid
+        && validText(request.resource.data.name, 120)
+        && request.resource.data.currency in ['KES', 'USD', 'EUR', 'GBP', 'JPY']
+        && request.resource.data.createdAt is string
+        && request.resource.data.subscription.planId == 'trial'
+        && request.resource.data.subscription.status == 'trialing'
+        && request.resource.data.subscription.trialStartedAt is timestamp
+        && request.resource.data.subscription.trialEndsAt is timestamp
+        && request.resource.data.subscription.trialStartedAt <= request.time + duration.value(5, 'm')
+        && request.resource.data.subscription.trialStartedAt >= request.time - duration.value(5, 'm')
+        && request.resource.data.subscription.trialEndsAt > request.time
+        && request.resource.data.subscription.trialEndsAt <= request.resource.data.subscription.trialStartedAt + duration.value(21, 'd');
+
       allow update: if businessOwner(businessId)
-        && request.resource.data.ownerId == resource.data.ownerId
         && request.resource.data.id == resource.data.id
+        && request.resource.data.ownerId == resource.data.ownerId
         && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.subscription == resource.data.subscription
+        && request.resource.data.get('subscription', null) == resource.data.get('subscription', null)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'name', 'phone', 'email', 'address', 'taxNumber', 'logoUrl', 'currency', 'monthlyBudget'
         ])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 120
+        // Keep account identity/settings editable after expiry, but monthly
+        // budget remains an operational business write and is gated.
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['monthlyBudget'])
+          || subscriptionAllowsWrites(businessId))
+        && validText(request.resource.data.name, 120)
         && request.resource.data.currency in ['KES', 'USD', 'EUR', 'GBP', 'JPY']
-        && (!('monthlyBudget' in request.resource.data) || finiteNonNegative(request.resource.data.monthlyBudget, 1000000000000));
+        && (!('monthlyBudget' in request.resource.data) || validMoney(request.resource.data.monthlyBudget));
       allow delete: if false;
 
       match /products/{id} {
-        // Product creation, edits, quantity changes and removal use trusted
-        // Functions so inventory balances cannot be changed without a ledger entry.
         allow read: if businessOwner(businessId);
-        allow create, update, delete: if false;
+        // Client workflows use Firestore batches/transactions to update stock
+        // and append their movement entries atomically. The owner may only
+        // mutate their own validated product records while entitled to write.
+        allow create: if businessCanWrite(businessId)
+          && validProduct(request.resource.data, businessId, id);
+        allow update: if businessCanWrite(businessId)
+          && validProduct(request.resource.data, businessId, id)
+          && request.resource.data.id == resource.data.id
+          && request.resource.data.businessId == resource.data.businessId
+          && request.resource.data.createdAt == resource.data.createdAt;
+        // Historical products are archived by the client. A never-stocked
+        // empty product can be removed; records with a movement trail cannot.
+        allow delete: if businessCanWrite(businessId)
+          && resource.data.quantity == 0
+          && !('lastStockMovementId' in resource.data);
       }
 
       match /categories/{id} {
         allow read: if businessOwner(businessId);
-        allow create, update, delete: if businessOwner(businessId) && activeSubscription(businessId);
+        allow create: if businessCanWrite(businessId)
+          && request.resource.data.id == id
+          && validText(request.resource.data.name, 80);
+        allow update: if businessCanWrite(businessId)
+          && request.resource.data.id == resource.data.id
+          && validText(request.resource.data.name, 80);
+        allow delete: if businessCanWrite(businessId);
       }
 
       match /suppliers/{id} {
         allow read: if businessOwner(businessId);
-        allow create: if businessOwner(businessId) && activeSubscription(businessId)
-          && request.resource.data.id == id && validContact(request.resource.data, businessId);
-        allow update: if businessOwner(businessId) && activeSubscription(businessId)
-          && request.resource.data.id == resource.data.id && validContact(request.resource.data, businessId);
-        allow delete: if businessOwner(businessId) && activeSubscription(businessId);
+        allow create: if businessCanWrite(businessId) && validContact(request.resource.data, businessId, id);
+        allow update: if businessCanWrite(businessId)
+          && request.resource.data.id == resource.data.id
+          && validContact(request.resource.data, businessId, id);
+        allow delete: if businessCanWrite(businessId);
       }
 
       match /customers/{id} {
         allow read: if businessOwner(businessId);
-        allow create: if businessOwner(businessId) && activeSubscription(businessId)
-          && request.resource.data.id == id && validContact(request.resource.data, businessId);
-        allow update: if businessOwner(businessId) && activeSubscription(businessId)
-          && request.resource.data.id == resource.data.id && validContact(request.resource.data, businessId);
-        allow delete: if businessOwner(businessId) && activeSubscription(businessId);
+        allow create: if businessCanWrite(businessId) && validContact(request.resource.data, businessId, id);
+        allow update: if businessCanWrite(businessId)
+          && request.resource.data.id == resource.data.id
+          && validContact(request.resource.data, businessId, id);
+        allow delete: if businessCanWrite(businessId);
       }
 
-      // Posted documents are created atomically by trusted Functions. Clients
-      // cannot amend or delete financial history after it has been recorded.
       match /sales/{id} {
         allow read: if businessOwner(businessId);
-        allow write: if false;
+        allow create: if businessCanWrite(businessId) && validSale(request.resource.data, businessId, id);
+        allow update, delete: if false;
       }
+
       match /purchases/{id} {
         allow read: if businessOwner(businessId);
-        allow write: if false;
+        allow create: if businessCanWrite(businessId) && validPurchase(request.resource.data, businessId, id);
+        allow update, delete: if false;
       }
+
       match /payments/{id} {
         allow read: if businessOwner(businessId);
-        allow write: if false;
+        allow create: if businessCanWrite(businessId)
+          && request.resource.data.id == id
+          && request.resource.data.businessId == businessId
+          && request.resource.data.partyType in ['customer', 'supplier']
+          && validText(request.resource.data.partyId, 128)
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.amount <= 1000000000000
+          && request.resource.data.paymentMethod in ['cash', 'mpesa', 'card', 'credit', 'other']
+          && request.resource.data.createdAt is string;
+        allow update, delete: if false;
       }
+
       match /stockMovements/{id} {
         allow read: if businessOwner(businessId);
-        // Append-only ledger writes are performed by Admin SDK Functions.
-        allow create, update, delete: if false;
+        allow create: if businessCanWrite(businessId)
+          && validMovementPayload(request.resource.data, businessId, id);
+        allow update, delete: if false;
       }
 
       match /expenses/{id} {
         allow read: if businessOwner(businessId);
-        allow create: if businessOwner(businessId) && activeSubscription(businessId)
+        allow create: if businessCanWrite(businessId)
           && request.resource.data.id == id
+          && (!('businessId' in request.resource.data) || request.resource.data.businessId == businessId)
           && request.resource.data.amount is number
           && request.resource.data.amount > 0
           && request.resource.data.amount <= 1000000000000
-          && request.resource.data.merchant is string
-          && request.resource.data.merchant.size() > 0
-          && request.resource.data.merchant.size() <= 160
-          && request.resource.data.category is string
-          && request.resource.data.category.size() > 0
-          && request.resource.data.category.size() <= 80
+          && validText(request.resource.data.merchant, 160)
+          && validText(request.resource.data.category, 80)
           && request.resource.data.date is string;
-        allow update: if businessOwner(businessId) && activeSubscription(businessId)
+        allow update: if businessCanWrite(businessId)
           && request.resource.data.id == resource.data.id
+          && (!('businessId' in request.resource.data) || request.resource.data.businessId == businessId)
           && request.resource.data.amount is number
           && request.resource.data.amount > 0
           && request.resource.data.amount <= 1000000000000
-          && request.resource.data.merchant is string
-          && request.resource.data.merchant.size() > 0
-          && request.resource.data.category is string
+          && validText(request.resource.data.merchant, 160)
+          && validText(request.resource.data.category, 80)
           && request.resource.data.date is string;
-        allow delete: if businessOwner(businessId) && activeSubscription(businessId);
+        allow delete: if businessCanWrite(businessId);
       }
 
+      // Subscription payment requests must remain available even after a
+      // trial expires, otherwise the owner could not request reactivation.
       match /subscriptionPaymentRequests/{id} {
         allow read: if businessOwner(businessId);
         allow create: if businessOwner(businessId)
@@ -151,7 +297,6 @@ service cloud.firestore {
       allow read, write: if signedIn() && request.auth.uid == userId;
     }
 
-    // Platform administrator is a separate, trusted Firebase custom claim.
     match /platformMetrics/{documentId} {
       allow read: if signedIn() && request.auth.token.platformAdmin == true;
       allow write: if false;

@@ -1,3 +1,5 @@
+> **Current architecture update — 3 November 2026:** The previous role-based/Cloud-Functions-dependent notes below are historical. The current recovery uses a single-owner `businesses/{uid}` model and direct Firestore CRUD on Spark. See [FINAI_SPARK_CRUD_RECOVERY.md](docs/FINAI_SPARK_CRUD_RECOVERY.md) for current behavior, security limitations, and deployment steps. Normal CRUD must not require a Functions deployment or Blaze upgrade.
+
 # Inventory Tracker migration progress
 
 ## Current uplift — Beta 6
@@ -20,3 +22,11 @@
 - Configure Gemini server key and Firebase Admin Application Default Credentials.
 - Implement actual billing checkout/renewal before enabling paid plans; the UI is deliberately non-operational for payments.
 - Add trusted email invitations, audited maintenance controls, and production error aggregation.
+
+## Spark CRUD recovery verification — 3 November 2026
+
+- Unit suite: 23/23 passed.
+- Auth + Firestore Emulator: 8/8 passed using `demo-finai`.
+- Emulator execution did not deploy production rules or Cloud Functions. No production deployment has been performed.
+- The initial root typecheck exposed 14 errors in `src/context/inventory-context.tsx`; a follow-up patch resolves the reported nullable-Firestore, movement-literal and unsupported transaction-query issues. Re-run root typecheck/build before Stage 3.
+- Cloud Functions remain optional/historical; normal business CRUD must not call them.

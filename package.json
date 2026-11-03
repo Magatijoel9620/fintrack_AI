@@ -10,7 +10,8 @@
     "start": "next start",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/financial-integrity.test.mjs tests/subscription-policy.test.mjs",
+    "test:emulator": "npx --yes firebase-tools@latest emulators:exec --only auth,firestore --project demo-finai \"node --test tests/firestore-emulator.test.mjs\""
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.7",

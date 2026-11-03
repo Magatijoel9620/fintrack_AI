@@ -1,14 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
-const require = createRequire(import.meta.url);
-const {
+import {
   calculateTotals,
   calculateOutstandingBalance,
   validatePaymentAmount,
   validatePaymentMethod,
   calculateStockDelta,
-} = require("../functions/src/financial-integrity.js");
+} from "../src/lib/financial-integrity.mjs";
 
 test("sale totals are recomputed from unit prices and quantities", () => {
   const totals = calculateTotals({

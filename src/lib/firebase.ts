@@ -1,7 +1,6 @@
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
-import { getFunctions, type Functions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
@@ -21,8 +20,4 @@ export const firebaseApp: FirebaseApp | undefined = isFirebaseConfigured
   : undefined;
 export const auth: Auth | null = firebaseApp ? getAuth(firebaseApp) : null;
 export const db: Firestore | null = firebaseApp ? getFirestore(firebaseApp) : null;
-// Must match REGION in functions/src/index.ts.
-export const functions: Functions | null = firebaseApp
-  ? getFunctions(firebaseApp, "europe-west1")
-  : null;
 export const googleProvider = new GoogleAuthProvider();

@@ -11,17 +11,28 @@ import React, {
 } from "react";
 import {
   collection,
-  deleteDoc,
-  getDoc,
+  deleteField,
+  Timestamp,
   doc,
+  getDoc,
+  getDocs,
   onSnapshot,
   runTransaction,
   setDoc,
   writeBatch,
+  query,
+  where,
 } from "firebase/firestore";
-import { db, functions } from "@/lib/firebase";
-import { httpsCallable } from "firebase/functions";
-import { calculateTotals, validatePaymentAmount } from "../../functions/src/financial-integrity.js";
+import { db } from "@/lib/firebase";
+import { businessWritesAllowed } from "@/lib/subscription-policy.mjs";
+import {
+  calculateTotals,
+  calculateOutstandingBalance,
+  calculateStockDelta,
+  validatePaymentAmount,
+  validatePaymentMethod,
+  roundMoney,
+} from "@/lib/financial-integrity.mjs";
 import { useAuth } from "@/context/auth-context";
 import {
   Business,
@@ -41,6 +52,31 @@ import { useToast } from "@/hooks/use-toast";
 const uid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
 const LOCAL_KEY = (businessId: string) => `inventory-tracker:${businessId || "guest"}:v1`;
+
+function readAccountRevision(value: unknown): number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : 0;
+}
+
+// Firebase rejects `undefined` fields unless the Firestore instance opts into
+// ignoreUndefinedProperties. UI forms intentionally use undefined for blank
+// optional fields (barcode, phone, email, reference), so strip those fields
+// before sending plain records to Firestore while preserving Timestamp/Date.
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((item) => stripUndefined(item)) as T;
+  if (value !== null && typeof value === "object") {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype === Object.prototype || prototype === null) {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+          .filter(([, item]) => item !== undefined)
+          .map(([key, item]) => [key, stripUndefined(item)]),
+      ) as T;
+    }
+  }
+  return value;
+}
 
 type State = {
   business: Business;
@@ -191,18 +227,37 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     const businessRef = doc(firestore, "businesses", businessId);
     let initializationStage = "provisioning business workspace";
     const seedBusiness = async () => {
-      if (!functions) throw new Error("Business provisioning is unavailable. Check the Firebase Functions configuration.");
-      const provision = httpsCallable(functions, "ensureBusinessProvisioned");
-      await provision({});
-      initializationStage = "verifying business ownership";
-      const existing = await getDoc(businessRef);
-      if (!existing.exists()) throw new Error("Business provisioning did not create the expected workspace.");
-      const existingData = existing.data() as Partial<Business>;
-      if (existingData.ownerId !== user.uid || existingData.id !== user.uid) {
-        throw new Error("The existing business record does not belong to the signed-in account. No data was changed.");
-      }
-      // One authenticated Firebase UID owns exactly one business. Legacy member
-      // subcollections are intentionally left untouched and are no longer read.
+      // The signed-in UID is the business ID. Provisioning is a narrowly
+      // authorized Firestore create, so ordinary workspace setup works on Spark.
+      // The transaction prevents two simultaneous first logins from overwriting
+      // an existing profile or resetting its trial.
+      await runTransaction(firestore, async (tx) => {
+        const existing = await tx.get(businessRef);
+        if (existing.exists()) {
+          const data = existing.data() as Partial<Business>;
+          if (data.id !== user.uid || data.ownerId !== user.uid) {
+            throw new Error("The existing business record does not belong to this account. No data was changed.");
+          }
+          return;
+        }
+        initializationStage = "creating new business record";
+        const trialStartedAt = Timestamp.now();
+        const trialEndsAt = Timestamp.fromMillis(trialStartedAt.toMillis() + 21 * 24 * 60 * 60 * 1000);
+        tx.set(businessRef, {
+          id: user.uid,
+          name: user.displayName ? `${user.displayName.trim().slice(0, 80)}'s Business` : "My Business",
+          currency: "KES",
+          ownerId: user.uid,
+          createdAt: now(),
+          subscription: {
+            planId: "trial",
+            status: "trialing",
+            trialStartedAt,
+            trialEndsAt,
+            updatedAt: trialStartedAt,
+          },
+        });
+      });
     };
 
     const unsubscribers: (() => void)[] = [];
@@ -230,7 +285,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
             (err) => {
               console.error("Failed to sync business snapshot", { code: err.code, message: err.message });
               setLoading(false);
-              toast({ variant: "destructive", title: "Business sync failed", description: err.code === "permission-denied" ? "Firestore denied access to this business record. Verify owner-only access and deployed rules." : "The business record could not be synchronized. Check your connection and retry." });
+              toast({ variant: "destructive", title: "Business sync failed", description: err.code === "permission-denied" ? "Firestore denied access to this business record. Verify that the business document ID matches your signed-in account and that the latest rules are deployed." : "The business record could not be synchronized. Check your connection and retry." });
             },
           ),
         );
@@ -252,7 +307,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
             (err) => {
               console.error(`Failed to sync ${name} collection`, { code: err.code, message: err.message });
               setLoading(false);
-              toast({ variant: "destructive", title: `${name} sync failed`, description: err.code === "permission-denied" ? `Firestore denied access to ${name}. Verify owner-only access and deployed rules.` : `The ${name} collection could not be synchronized. Check your connection and retry.` });
+              toast({ variant: "destructive", title: `${name} sync failed`, description: err.code === "permission-denied" ? `Firestore denied access to ${name}. Verify that the signed-in account owns this workspace and that the latest rules are deployed.` : `The ${name} collection could not be synchronized. Check your connection and retry.` });
             },
           );
 
@@ -302,7 +357,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
           variant: "destructive",
           title: `Cloud sync failed: ${initializationStage}`,
           description: code === "permission-denied"
-            ? "Firestore denied this operation. Check owner-only access and deployed rules; no existing business profile was overwritten."
+            ? "Firestore denied this operation. Check workspace ownership and the deployed rules; no existing business profile was overwritten."
             : message === "Unknown error" ? "Please retry or contact support with the operation shown here." : message,
         });
         setLoading(false);
@@ -323,42 +378,53 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     [firebaseMode, businessId],
   );
 
+  const assertBusinessWriteAccess = useCallback(() => {
+    if (!firebaseMode || businessWritesAllowed(state.business.subscription)) return;
+    throw new Error("Your free trial has ended. Your existing records remain available, but business changes are paused until you subscribe to a plan.");
+  }, [firebaseMode, state.business.subscription]);
+
   const addProduct = useCallback(
-    async (
-      input: Omit<Product, "id" | "businessId" | "createdAt" | "updatedAt">,
-    ) => {
+    async (input: Omit<Product, "id" | "businessId" | "createdAt" | "updatedAt">) => {
+      assertBusinessWriteAccess();
       if (!input.name?.trim() || !input.sku?.trim()) throw new Error("Product name and SKU are required.");
       if (![input.costPrice, input.sellingPrice, input.quantity, input.reorderLevel].every((n) => Number.isFinite(n) && n >= 0)) throw new Error("Prices, stock and reorder level must be valid non-negative numbers.");
       const normalizedSku = input.sku.trim();
       if (state.products.some((item) => item.sku.trim().toLowerCase() === normalizedSku.toLowerCase())) throw new Error("That SKU already exists. Use a unique SKU.");
       if (input.barcode?.trim() && state.products.some((item) => item.barcode?.trim() === input.barcode?.trim())) throw new Error("That barcode is already assigned to another product.");
-      const product: Product = {
-        ...input, name: input.name.trim(), sku: normalizedSku,
-        id: uid(), businessId, createdAt: now(), updatedAt: now(),
-      };
-      if (firebaseMode && functions) {
-        const create = httpsCallable(functions, "createProduct");
-        const result = await create(product);
-        toast({ title: "Product added", description: `${product.name} is now in your inventory.` });
-        return result.data as Product;
-      }
-      const movement: StockMovement | null = product.quantity > 0 ? {
-        id: uid(), businessId, productId: product.id, productName: product.name,
-        type: "opening", quantity: product.quantity, reference: "Opening stock", createdAt: now(),
+      const productId = uid();
+      const createdAt = now();
+      const movement: StockMovement | null = input.quantity > 0 ? {
+        id: uid(), businessId, productId, productName: input.name.trim(),
+        type: "opening", quantity: input.quantity, reference: "Opening stock",
+        createdAt, createdBy: user?.uid,
       } : null;
-      setState((current) => {
-        const next = { ...current, products: [product, ...current.products], movements: movement ? [movement, ...current.movements] : current.movements };
-        persistLocal(next);
-        return next;
-      });
+      const product: Product & { lastStockMovementId?: string } = {
+        ...input, name: input.name.trim(), sku: normalizedSku,
+        id: productId, businessId, createdAt, updatedAt: createdAt,
+        ...(movement ? { lastStockMovementId: movement.id } : {}),
+      };
+      const firestore = db;
+      if (firebaseMode && firestore) {
+        const batch = writeBatch(firestore);
+        batch.set(doc(firestore, "businesses", businessId, "products", product.id), stripUndefined(product));
+        if (movement) batch.set(doc(firestore, "businesses", businessId, "stockMovements", movement.id), stripUndefined(movement));
+        await batch.commit();
+      } else {
+        setState((current) => {
+          const next = { ...current, products: [product, ...current.products], movements: movement ? [movement, ...current.movements] : current.movements };
+          persistLocal(next);
+          return next;
+        });
+      }
       toast({ title: "Product added", description: `${product.name} is now in your inventory.` });
       return product;
     },
-    [businessId, firebaseMode, persistLocal, state.products, toast],
+    [assertBusinessWriteAccess, businessId, firebaseMode, persistLocal, state.products, toast, user?.uid],
   );
 
   const updateProduct = useCallback(
     async (product: Product) => {
+      assertBusinessWriteAccess();
       if (!product.id || !product.name?.trim() || !product.sku?.trim()) throw new Error("Product name and SKU are required.");
       if (![product.costPrice, product.sellingPrice, product.quantity, product.reorderLevel].every((n) => Number.isFinite(n) && n >= 0)) throw new Error("Prices, stock and reorder level must be valid non-negative numbers.");
       if (state.products.some((item) => item.id !== product.id && item.sku.trim().toLowerCase() === product.sku.trim().toLowerCase())) throw new Error("That SKU already exists. Use a unique SKU.");
@@ -366,20 +432,43 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       const updated = { ...product, name: product.name.trim(), sku: product.sku.trim(), updatedAt: now() };
       const previous = state.products.find((item) => item.id === product.id);
       if (!previous) throw new Error("Product not found. Refresh the inventory and try again.");
-      if (firebaseMode && functions) {
-        const update = httpsCallable(functions, "updateProduct");
-        await update({ ...updated, expectedQuantity: previous.quantity });
+      const firestore = db;
+      if (firebaseMode && firestore) {
+        await runTransaction(firestore, async (tx) => {
+          const productRef = doc(firestore, "businesses", businessId, "products", product.id);
+          const snapshot = await tx.get(productRef);
+          if (!snapshot.exists()) throw new Error("Product not found. Refresh the inventory and try again.");
+          const stored = snapshot.data() as Product;
+          const delta = roundMoney(updated.quantity - Number(stored.quantity));
+          if (delta !== 0) {
+            const movement: StockMovement = {
+              id: uid(), businessId, productId: product.id, productName: updated.name,
+              type: "adjustment", quantity: delta, reference: "Product edit stock adjustment",
+              note: "Quantity changed from product editor", createdAt: now(), createdBy: user?.uid,
+            };
+            tx.update(productRef, {
+              ...stripUndefined({ ...updated, lastStockMovementId: movement.id }),
+              ...(product.barcode === undefined ? { barcode: deleteField() } : {}),
+            });
+            tx.set(doc(firestore, "businesses", businessId, "stockMovements", movement.id), stripUndefined(movement));
+          } else {
+            tx.update(productRef, {
+              ...stripUndefined(updated),
+              ...(product.barcode === undefined ? { barcode: deleteField() } : {}),
+            });
+          }
+        });
       } else {
-        const delta = updated.quantity - previous.quantity;
+        const delta = roundMoney(updated.quantity - previous.quantity);
         const movement: StockMovement | null = delta !== 0 ? {
           id: uid(), businessId, productId: product.id, productName: updated.name,
           type: "adjustment", quantity: delta, reference: "Product edit stock adjustment",
-          note: "Quantity changed from product editor", createdAt: now(),
+          note: "Quantity changed from product editor", createdAt: now(), createdBy: user?.uid,
         } : null;
         setState((current) => {
           const next = {
             ...current,
-            products: current.products.map((item) => item.id === product.id ? updated : item),
+            products: current.products.map((item) => item.id === product.id ? { ...updated, ...(movement ? { lastStockMovementId: movement.id } : {}) } : item),
             movements: movement ? [movement, ...current.movements] : current.movements,
           };
           persistLocal(next);
@@ -388,129 +477,89 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       }
       toast({ title: "Product updated", description: product.name });
     },
-    [businessId, firebaseMode, persistLocal, state.products, toast],
+    [assertBusinessWriteAccess, businessId, firebaseMode, persistLocal, state.products, toast, user?.uid],
   );
 
   const deleteProduct = useCallback(
     async (id: string) => {
+      assertBusinessWriteAccess();
       const product = state.products.find((item) => item.id === id);
       if (!product) throw new Error("Product not found. Refresh the inventory and try again.");
-      const hasHistory = state.sales.some((sale) => sale.items.some((item) => item.productId === id)) ||
-        state.purchases.some((purchase) => purchase.items.some((item) => item.productId === id)) ||
-        state.movements.some((movement) => movement.productId === id);
-      if (firebaseMode && functions) {
-        if (hasHistory) {
-          await updateProduct({ ...product, isActive: false });
-          toast({ title: "Product archived", description: `${product.name} has transaction history and remains available in reports.` });
-          return;
-        }
-        const remove = httpsCallable(functions, "deleteProduct");
-        const result = await remove({ productId: id });
-        const outcome = result.data as { deleted: boolean; archived: boolean };
-        if (outcome.archived) {
-          toast({ title: "Product archived", description: `${product.name} has stock history and remains available in reports.` });
-        } else {
-          toast({ variant: "destructive", title: "Product removed", description: product.name });
-        }
-        return;
-      }
-      if (hasHistory) {
-        await updateProduct({ ...product, isActive: false });
-        toast({ title: "Product archived", description: `${product.name} has transaction history, so it was archived instead of permanently deleted.` });
-        return;
-      }
-      setState((current) => {
-        const next = { ...current, products: current.products.filter((item) => item.id !== id) };
-        persistLocal(next);
-        return next;
-      });
-      toast({ variant: "destructive", title: "Product removed", description: product.name });
+      // Keep product history referentially intact. Archive rather than delete;
+      // stock movements, sales and purchases remain readable for reports.
+      await updateProduct({ ...product, isActive: false });
+      toast({ title: "Product archived", description: `${product.name} remains available in historical records.` });
     },
-    [firebaseMode, persistLocal, state.products, state.sales, state.purchases, state.movements, toast, updateProduct],
+    [assertBusinessWriteAccess, state.products, toast, updateProduct],
   );
 
   const adjustStock = useCallback(
-    async (
-      productId: string,
-      quantity: number,
-      type: StockMovement["type"],
-      note?: string,
-      reference?: string,
-    ) => {
+    async (productId: string, quantity: number, type: StockMovement["type"], note?: string, reference?: string) => {
+      assertBusinessWriteAccess();
       const product = state.products.find((item) => item.id === productId);
       if (!product) throw new Error("Product not found");
       const amount = Math.abs(quantity);
-      if (!Number.isFinite(amount) || amount <= 0) throw new Error("Quantity must be a finite number greater than zero");
-      if (firebaseMode && functions) {
-        const adjust = httpsCallable(functions, "adjustStock");
-        await adjust({ id: uid(), productId, quantity: amount, type, note, reference });
-        toast({ title: "Stock updated", description: `${product.name} movement recorded.` });
-        return;
+      const delta = calculateStockDelta(type, amount);
+      const firestore = db;
+      if (firebaseMode && firestore) {
+        await runTransaction(firestore, async (tx) => {
+          const productRef = doc(firestore, "businesses", businessId, "products", productId);
+          const snapshot = await tx.get(productRef);
+          if (!snapshot.exists()) throw new Error("Product not found. Refresh inventory and try again.");
+          const stored = snapshot.data() as Product;
+          const nextQuantity = roundMoney(Number(stored.quantity) + delta);
+          if (nextQuantity < 0) throw new Error("Not enough stock available");
+          const movement: StockMovement = {
+            id: uid(), businessId, productId, productName: String(stored.name), type,
+            quantity: delta, note, reference, createdAt: now(), createdBy: user?.uid,
+          };
+          tx.update(productRef, { quantity: nextQuantity, updatedAt: now(), lastStockMovementId: movement.id });
+          tx.set(doc(firestore, "businesses", businessId, "stockMovements", movement.id), stripUndefined(movement));
+        });
+      } else {
+        const nextQuantity = roundMoney(product.quantity + delta);
+        if (nextQuantity < 0) throw new Error("Not enough stock available");
+        const movement: StockMovement = { id: uid(), businessId, productId, productName: product.name, type, quantity: delta, note, reference, createdAt: now(), createdBy: user?.uid };
+        setState((current) => {
+          const next = { ...current, products: current.products.map((item) => item.id === productId ? { ...item, quantity: nextQuantity, updatedAt: now(), lastStockMovementId: movement.id } : item), movements: [movement, ...current.movements] };
+          persistLocal(next);
+          return next;
+        });
       }
-      const delta = ["stock-in", "purchase", "return", "opening"].includes(type) ? amount : -amount;
-      if (product.quantity + delta < 0) throw new Error("Not enough stock available");
-      const movement: StockMovement = {
-        id: uid(), businessId, productId, productName: product.name,
-        type, quantity: delta, note, reference, createdAt: now(),
-      };
-      setState((current) => {
-        const next = {
-          ...current,
-          products: current.products.map((item) => item.id === productId ? { ...item, quantity: item.quantity + delta, updatedAt: now() } : item),
-          movements: [movement, ...current.movements],
-        };
-        persistLocal(next);
-        return next;
-      });
       toast({ title: "Stock updated", description: `${product.name}: ${delta > 0 ? "+" : ""}${delta} ${product.unit}` });
     },
-    [businessId, firebaseMode, persistLocal, state.products, toast],
+    [assertBusinessWriteAccess, businessId, firebaseMode, persistLocal, state.products, toast, user?.uid],
   );
 
   const addSupplier = useCallback(
     async (input: Omit<Supplier, "id" | "businessId" | "createdAt">) => {
+      assertBusinessWriteAccess();
       const supplier: Supplier = {
-        ...input,
-        id: uid(),
-        businessId,
-        createdAt: now(),
+        id: uid(), businessId, name: input.name.trim(), balance: Number(input.balance ?? 0), createdAt: now(),
+        ...(input.phone?.trim() ? { phone: input.phone.trim() } : {}),
+        ...(input.email?.trim() ? { email: input.email.trim() } : {}),
+        ...(input.address?.trim() ? { address: input.address.trim() } : {}),
       };
-      if (firebaseMode && db)
-        await setDoc(
-          doc(db, "businesses", businessId, "suppliers", supplier.id),
-          supplier,
-        );
-      else
-        setState((s) => {
-          const next = { ...s, suppliers: [supplier, ...s.suppliers] };
-          persistLocal(next);
-          return next;
-        });
+      if (!supplier.name || !Number.isFinite(supplier.balance) || supplier.balance < 0) throw new Error("Enter a supplier name and valid balance.");
+      if (firebaseMode && db) await setDoc(doc(db, "businesses", businessId, "suppliers", supplier.id), stripUndefined(supplier));
+      else setState((current) => { const next = { ...current, suppliers: [supplier, ...current.suppliers] }; persistLocal(next); return next; });
     },
-    [businessId, firebaseMode, persistLocal],
+    [assertBusinessWriteAccess, businessId, firebaseMode, persistLocal],
   );
 
   const addCustomer = useCallback(
     async (input: Omit<Customer, "id" | "businessId" | "createdAt">) => {
+      assertBusinessWriteAccess();
       const customer: Customer = {
-        ...input,
-        id: uid(),
-        businessId,
-        createdAt: now(),
+        id: uid(), businessId, name: input.name.trim(), balance: Number(input.balance ?? 0), createdAt: now(),
+        ...(input.phone?.trim() ? { phone: input.phone.trim() } : {}),
+        ...(input.email?.trim() ? { email: input.email.trim() } : {}),
       };
-      if (firebaseMode && db)
-        await setDoc(
-          doc(db, "businesses", businessId, "customers", customer.id),
-          customer,
-        );
-      else
-        setState((s) => {
-          const next = { ...s, customers: [customer, ...s.customers] };
-          persistLocal(next);
-          return next;
-        });
+      if (!customer.name || !Number.isFinite(customer.balance) || customer.balance < 0) throw new Error("Enter a customer name and valid balance.");
+      if (firebaseMode && db) await setDoc(doc(db, "businesses", businessId, "customers", customer.id), stripUndefined(customer));
+      else setState((current) => { const next = { ...current, customers: [customer, ...current.customers] }; persistLocal(next); return next; });
     },
-    [businessId, firebaseMode, persistLocal],
+    [assertBusinessWriteAccess, businessId, firebaseMode, persistLocal],
   );
 
   const recordSale = useCallback(async (input: {
@@ -519,11 +568,76 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     subtotal: number; discount: number; taxRate: number;
     paymentMethod: Sale["paymentMethod"]; amountPaid: number;
   }): Promise<Sale> => {
-    if (!user || !functions) throw new Error("Sign in and configure Firebase Functions before recording a sale.");
-    const createSale = httpsCallable(functions, "recordSale");
-    const result = await createSale({ id: uid(), ...input });
-    return result.data as Sale;
-  }, [user]);
+    assertBusinessWriteAccess();
+    if (!user || !businessId) throw new Error("Sign in before recording a sale.");
+    if (!input.invoiceNumber.trim()) throw new Error("Invoice number is required.");
+    const paymentMethod = validatePaymentMethod(input.paymentMethod) as Sale["paymentMethod"];
+    if (new Set(input.items.map((item) => item.productId)).size !== input.items.length) {
+      throw new Error("Each product may appear only once in a sale.");
+    }
+    const saleId = uid();
+    const firestore = db;
+    if (!firebaseMode || !firestore) {
+      const productsById = new Map(state.products.map((product) => [product.id, product]));
+      const normalized = input.items.map((item) => {
+        const product = productsById.get(item.productId);
+        if (!product) throw new Error(`Product not found: ${item.productName}`);
+        if (!product.isActive) throw new Error(`${product.name} is archived.`);
+        if (product.quantity < item.quantity) throw new Error(`Insufficient stock for ${product.name}.`);
+        return { ...item, unitPrice: product.sellingPrice, unitCost: product.costPrice };
+      });
+      const totals = calculateTotals({ items: normalized, priceField: "unitPrice", discount: input.discount, taxRate: input.taxRate, amountPaid: input.amountPaid });
+      if (paymentMethod !== "credit" && totals.amountPaid !== totals.total) throw new Error("A non-credit sale must be paid in full.");
+      if (paymentMethod === "credit" && !input.customerId) throw new Error("Select a customer for a credit sale.");
+      const sale: Sale = { id: saleId, businessId, invoiceNumber: input.invoiceNumber.trim(), ...(input.customerId ? { customerId: input.customerId } : {}), items: totals.items.map((item, index) => ({ ...item, productName: normalized[index].productName, unitCost: normalized[index].unitCost })), subtotal: totals.subtotal, discount: totals.discount, tax: totals.tax, total: totals.total, paymentMethod, amountPaid: totals.amountPaid, createdAt: now() };
+      const movements: StockMovement[] = totals.items.map((item, index) => ({ id: uid(), businessId, productId: item.productId, productName: normalized[index].productName, type: "sale", quantity: -item.quantity, reference: sale.invoiceNumber, referenceType: "sale", referenceId: saleId, createdAt: now(), createdBy: user.uid }));
+      setState((current) => { const next = { ...current, sales: [sale, ...current.sales], products: current.products.map((product) => { const item = totals.items.find((line) => line.productId === product.id); return item ? { ...product, quantity: roundMoney(product.quantity - item.quantity) } : product; }), movements: [...movements, ...current.movements] }; persistLocal(next); return next; });
+      return sale;
+    }
+
+    const productRefs = input.items.map((item) => doc(firestore, "businesses", businessId, "products", item.productId));
+    let savedSale!: Sale;
+    await runTransaction(firestore, async (tx) => {
+      const refsToRead = [...productRefs];
+      const customerRef = input.customerId ? doc(firestore, "businesses", businessId, "customers", input.customerId) : null;
+      if (customerRef) refsToRead.push(customerRef);
+      const snapshots = await Promise.all(refsToRead.map((ref) => tx.get(ref)));
+      const productSnapshots = snapshots.slice(0, productRefs.length);
+      productSnapshots.forEach((snapshot, index) => {
+        if (!snapshot.exists()) throw new Error(`Product not found: ${input.items[index].productName}`);
+        if (snapshot.data()?.isActive === false) throw new Error(`${snapshot.data()?.name ?? input.items[index].productName} is archived.`);
+      });
+      const customerSnapshot = customerRef ? snapshots[productRefs.length] : null;
+      if (customerRef && !customerSnapshot?.exists()) throw new Error("The selected customer no longer exists.");
+      if (paymentMethod === "credit" && !customerRef) throw new Error("Select a customer for a credit sale.");
+      const normalized = productSnapshots.map((snapshot, index) => {
+        const product = snapshot.data() as Product;
+        const requested = input.items[index];
+        if (Number(product.quantity) < requested.quantity) throw new Error(`Insufficient stock for ${product.name}.`);
+        return { productId: productRefs[index].id, productName: product.name, quantity: requested.quantity, unitPrice: product.sellingPrice, unitCost: product.costPrice };
+      });
+      const totals = calculateTotals({ items: normalized, priceField: "unitPrice", discount: input.discount, taxRate: input.taxRate, amountPaid: input.amountPaid });
+      if (paymentMethod !== "credit" && totals.amountPaid !== totals.total) throw new Error("A non-credit sale must be paid in full.");
+      const createdAt = now();
+      const movements: StockMovement[] = totals.items.map((item, index) => ({ id: uid(), businessId, productId: item.productId, productName: normalized[index].productName, type: "sale", quantity: -item.quantity, reference: input.invoiceNumber.trim(), referenceType: "sale", referenceId: saleId, createdAt, createdBy: user.uid } as StockMovement));
+      savedSale = { id: saleId, businessId, invoiceNumber: input.invoiceNumber.trim(), ...(input.customerId ? { customerId: input.customerId } : {}), items: totals.items.map((item, index) => ({ ...item, productName: normalized[index].productName, unitCost: roundMoney(normalized[index].unitCost) })), subtotal: totals.subtotal, discount: totals.discount, tax: totals.tax, total: totals.total, paymentMethod, amountPaid: totals.amountPaid, createdAt };
+      (savedSale as Sale & { stockMovementIds: string[] }).stockMovementIds = movements.map((movement) => movement.id);
+      totals.items.forEach((item, index) => {
+        tx.update(productRefs[index], { quantity: roundMoney(Number(productSnapshots[index].data()?.quantity) - item.quantity), updatedAt: createdAt, lastStockMovementId: movements[index].id });
+        tx.set(doc(firestore, "businesses", businessId, "stockMovements", movements[index].id), stripUndefined(movements[index]));
+      });
+      // Touch the customer document in the same transaction as the sale.
+      // This serializes customer-account payments against new invoices without
+      // requiring query reads inside a Web SDK transaction (which are unsupported).
+      if (customerRef && customerSnapshot?.exists()) {
+        const revision = readAccountRevision(customerSnapshot.data()?.accountRevision);
+        tx.update(customerRef, { accountRevision: revision + 1, lastTransactionAt: createdAt });
+      }
+      tx.set(doc(firestore, "businesses", businessId, "sales", saleId), stripUndefined(savedSale));
+    });
+    toast({ title: "Sale recorded", description: `${savedSale.invoiceNumber} • ${CURRENCY_SYMBOLS[state.business.currency]}${savedSale.total.toFixed(2)}` });
+    return savedSale;
+  }, [assertBusinessWriteAccess, businessId, firebaseMode, persistLocal, state.business.currency, state.products, toast, user]);
 
   const recordPurchase = useCallback(async (input: {
     invoiceNumber: string; supplierId?: string;
@@ -531,21 +645,106 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     subtotal: number; discount: number; taxRate: number;
     paymentMethod: Purchase["paymentMethod"]; amountPaid: number;
   }): Promise<Purchase> => {
-    if (!user || !functions) throw new Error("Sign in and configure Firebase Functions before recording a purchase.");
-    const createPurchase = httpsCallable(functions, "recordPurchase");
-    const result = await createPurchase({ id: uid(), ...input });
-    return result.data as Purchase;
-  }, [user]);
+    assertBusinessWriteAccess();
+    if (!user || !businessId) throw new Error("Sign in before recording a purchase.");
+    if (!input.invoiceNumber.trim()) throw new Error("Supplier invoice number is required.");
+    const paymentMethod = validatePaymentMethod(input.paymentMethod ?? "credit") as Purchase["paymentMethod"];
+    if (new Set(input.items.map((item) => item.productId)).size !== input.items.length) throw new Error("Each product may appear only once in a purchase.");
+    const purchaseId = uid();
+    const firestore = db;
+    if (!firebaseMode || !firestore) {
+      const productsById = new Map(state.products.map((product) => [product.id, product]));
+      const normalized = input.items.map((item) => {
+        const product = productsById.get(item.productId);
+        if (!product) throw new Error(`Product not found: ${item.productName}`);
+        return { ...item, productName: product.name, unitCost: item.unitCost };
+      });
+      const totals = calculateTotals({ items: normalized, priceField: "unitCost", discount: input.discount, taxRate: input.taxRate, amountPaid: input.amountPaid });
+      if (paymentMethod !== "credit" && totals.amountPaid !== totals.total) throw new Error("A non-credit purchase must be paid in full.");
+      if (totals.amountPaid < totals.total && !input.supplierId) throw new Error("Select a supplier for an outstanding purchase balance.");
+      const purchase: Purchase = { id: purchaseId, businessId, invoiceNumber: input.invoiceNumber.trim(), ...(input.supplierId ? { supplierId: input.supplierId } : {}), items: totals.items.map((item, index) => ({ ...item, productName: normalized[index].productName })), subtotal: totals.subtotal, discount: totals.discount, tax: totals.tax, total: totals.total, paymentMethod, amountPaid: totals.amountPaid, createdAt: now() };
+      const movements: StockMovement[] = totals.items.map((item, index) => ({ id: uid(), businessId, productId: item.productId, productName: normalized[index].productName, type: "purchase", quantity: item.quantity, reference: purchase.invoiceNumber, referenceType: "purchase", referenceId: purchaseId, unitCost: item.unitCost, createdAt: now(), createdBy: user.uid }));
+      setState((current) => { const next = { ...current, purchases: [purchase, ...current.purchases], products: current.products.map((product) => { const item = totals.items.find((line) => line.productId === product.id); return item ? { ...product, quantity: roundMoney(product.quantity + item.quantity), costPrice: item.unitCost } : product; }), movements: [...movements, ...current.movements] }; persistLocal(next); return next; });
+      return purchase;
+    }
+
+    const productRefs = input.items.map((item) => doc(firestore, "businesses", businessId, "products", item.productId));
+    let savedPurchase!: Purchase;
+    await runTransaction(firestore, async (tx) => {
+      const refsToRead = [...productRefs];
+      const supplierRef = input.supplierId ? doc(firestore, "businesses", businessId, "suppliers", input.supplierId) : null;
+      if (supplierRef) refsToRead.push(supplierRef);
+      const snapshots = await Promise.all(refsToRead.map((ref) => tx.get(ref)));
+      const productSnapshots = snapshots.slice(0, productRefs.length);
+      productSnapshots.forEach((snapshot, index) => {
+        if (!snapshot.exists()) throw new Error(`Product not found: ${input.items[index].productName}`);
+        if (snapshot.data()?.isActive === false) throw new Error(`${snapshot.data()?.name ?? input.items[index].productName} is archived.`);
+      });
+      const supplierSnapshot = supplierRef ? snapshots[productRefs.length] : null;
+      if (supplierRef && !supplierSnapshot?.exists()) throw new Error("The selected supplier no longer exists.");
+      const normalized = productSnapshots.map((snapshot, index) => ({ productId: productRefs[index].id, productName: String(snapshot.data()?.name ?? input.items[index].productName), quantity: input.items[index].quantity, unitCost: input.items[index].unitCost }));
+      const totals = calculateTotals({ items: normalized, priceField: "unitCost", discount: input.discount, taxRate: input.taxRate, amountPaid: input.amountPaid });
+      if (paymentMethod !== "credit" && totals.amountPaid !== totals.total) throw new Error("A non-credit purchase must be paid in full.");
+      if (totals.amountPaid < totals.total && !supplierRef) throw new Error("Select a supplier for an outstanding purchase balance.");
+      const createdAt = now();
+      const movements: StockMovement[] = totals.items.map((item, index) => ({ id: uid(), businessId, productId: item.productId, productName: normalized[index].productName, type: "purchase", quantity: item.quantity, reference: input.invoiceNumber.trim(), referenceType: "purchase", referenceId: purchaseId, unitCost: item.unitCost, createdAt, createdBy: user.uid } as StockMovement));
+      savedPurchase = { id: purchaseId, businessId, invoiceNumber: input.invoiceNumber.trim(), ...(input.supplierId ? { supplierId: input.supplierId } : {}), items: totals.items.map((item, index) => ({ ...item, productName: normalized[index].productName })), subtotal: totals.subtotal, discount: totals.discount, tax: totals.tax, total: totals.total, paymentMethod, amountPaid: totals.amountPaid, createdAt };
+      (savedPurchase as Purchase & { stockMovementIds: string[] }).stockMovementIds = movements.map((movement) => movement.id);
+      totals.items.forEach((item, index) => {
+        tx.update(productRefs[index], { quantity: roundMoney(Number(productSnapshots[index].data()?.quantity) + item.quantity), costPrice: item.unitCost, updatedAt: createdAt, lastStockMovementId: movements[index].id });
+        tx.set(doc(firestore, "businesses", businessId, "stockMovements", movements[index].id), stripUndefined(movements[index]));
+      });
+      // Serialize supplier-account payments against new purchase invoices.
+      if (supplierRef && supplierSnapshot?.exists()) {
+        const revision = readAccountRevision(supplierSnapshot.data()?.accountRevision);
+        tx.update(supplierRef, { accountRevision: revision + 1, lastTransactionAt: createdAt });
+      }
+      tx.set(doc(firestore, "businesses", businessId, "purchases", purchaseId), stripUndefined(savedPurchase));
+    });
+    toast({ title: "Purchase recorded", description: `${savedPurchase.invoiceNumber} added to stock.` });
+    return savedPurchase;
+  }, [assertBusinessWriteAccess, businessId, firebaseMode, persistLocal, state.products, toast, user]);
 
   const recordAccountPayment = useCallback(
     async (input: Omit<AccountPayment, "id" | "businessId" | "createdAt">) => {
+      assertBusinessWriteAccess();
       const amount = validatePaymentAmount(input.amount);
+      if (input.partyType !== "customer" && input.partyType !== "supplier") throw new Error("Payment party type is invalid.");
       if (!input.partyId) throw new Error("Select a customer or supplier before recording a payment.");
-      if (!(["cash", "mpesa", "card", "credit", "other"] as string[]).includes(input.paymentMethod)) throw new Error("Payment method is invalid.");
-      const payment: AccountPayment = { ...input, amount, id: uid(), businessId, createdAt: now(), createdBy: user?.uid };
-      if (firebaseMode && functions) {
-        const record = httpsCallable(functions, "recordAccountPayment");
-        await record(payment);
+      const paymentMethod = validatePaymentMethod(input.paymentMethod) as AccountPayment["paymentMethod"];
+      const payment: AccountPayment = {
+        id: uid(), businessId, partyType: input.partyType, partyId: input.partyId, amount,
+        paymentMethod, createdAt: now(), ...(user?.uid ? { createdBy: user.uid } : {}),
+        ...(input.reference?.trim() ? { reference: input.reference.trim() } : {}),
+        ...(input.note?.trim() ? { note: input.note.trim() } : {}),
+      };
+      const firestore = db;
+      if (firebaseMode && firestore) {
+        const partyCollection = input.partyType === "customer" ? "customers" : "suppliers";
+        const transactionCollection = input.partyType === "customer" ? "sales" : "purchases";
+        const partyField = input.partyType === "customer" ? "customerId" : "supplierId";
+        const partyRef = doc(firestore, "businesses", businessId, partyCollection, input.partyId);
+        const partyBefore = await getDoc(partyRef);
+        if (!partyBefore.exists()) throw new Error(`The selected ${input.partyType} no longer exists.`);
+        const revisionBefore = readAccountRevision(partyBefore.data().accountRevision);
+        const transactionsQuery = query(collection(firestore, "businesses", businessId, transactionCollection), where(partyField, "==", input.partyId));
+        const paymentQuery = query(collection(firestore, "businesses", businessId, "payments"), where("partyId", "==", input.partyId));
+        const [transactionSnapshot, paymentSnapshot] = await Promise.all([getDocs(transactionsQuery), getDocs(paymentQuery)]);
+        const outstanding = calculateOutstandingBalance(transactionSnapshot.docs.map((item) => item.data()), paymentSnapshot.docs.map((item) => item.data()), input.partyType);
+        if (amount > outstanding) throw new Error(`Payment exceeds the outstanding balance of ${outstanding.toFixed(2)}.`);
+        await runTransaction(firestore, async (tx) => {
+          const partySnapshot = await tx.get(partyRef);
+          if (!partySnapshot.exists()) throw new Error(`The selected ${input.partyType} no longer exists.`);
+          const revisionNow = readAccountRevision(partySnapshot.data().accountRevision);
+          if (revisionNow !== revisionBefore) {
+            throw new Error("This account balance changed while the payment was being recorded. Refresh the account and try again.");
+          }
+          // All invoice/purchase/payment paths update accountRevision in the same
+          // transaction as their ledger write. This makes the preflight query
+          // stale-safe for normal concurrent use while keeping Spark compatibility.
+          tx.update(partyRef, { accountRevision: revisionNow + 1, lastPaymentAt: payment.createdAt });
+          tx.set(doc(firestore, "businesses", businessId, "payments", payment.id), stripUndefined(payment));
+        });
       } else {
         const transactions = input.partyType === "customer" ? state.sales : state.purchases;
         const billed = transactions.filter((item) => (input.partyType === "customer" ? (item as Sale).customerId : (item as Purchase).supplierId) === input.partyId).reduce((sum, item) => sum + item.total, 0);
@@ -556,7 +755,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       }
       toast({ title: "Payment recorded", description: `${CURRENCY_SYMBOLS[state.business.currency]}${payment.amount.toFixed(2)} received/paid.` });
     },
-    [businessId, firebaseMode, persistLocal, state.business.currency, state.payments, state.purchases, state.sales, toast, user?.uid],
+    [assertBusinessWriteAccess, businessId, firebaseMode, persistLocal, state.business.currency, state.payments, state.purchases, state.sales, toast, user?.uid],
   );
 
   const updateBusiness = useCallback(
@@ -568,8 +767,10 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         >
       >,
     ) => {
+      // Business identity/contact settings remain manageable after trial expiry.
+      // Operational collections and budget changes remain subscription-gated.
       if (firebaseMode && db)
-        await setDoc(doc(db, "businesses", businessId), patch, { merge: true });
+        await setDoc(doc(db, "businesses", businessId), stripUndefined(patch), { merge: true });
       else
         setState((s) => {
           const next = { ...s, business: { ...s.business, ...patch } };

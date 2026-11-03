@@ -1,3 +1,5 @@
+> **Superseded on 3 November 2026:** This note describes the intermediate callable-Functions implementation that caused normal CRUD to depend on Blaze. It is retained as historical context only. The current Spark-compatible architecture and verified commands are documented in [FINAI_SPARK_CRUD_RECOVERY.md](FINAI_SPARK_CRUD_RECOVERY.md). Do not follow the callable deployment/rollout steps below for the current client.
+
 # FinAI implementation notes — 2 November 2026
 
 ## Product and authorization model

@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/auth-context";
 import { useInventory } from "@/context/inventory-context";
 import { useToast } from "@/hooks/use-toast";
+import { businessWritesAllowed } from "@/lib/subscription-policy.mjs";
 
 interface AppContextType {
   expenses: Expense[];
@@ -86,6 +87,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setLoading(false);
   }, [businessId, cloudReady, firebaseConfiguredForUser, toast]);
 
+  const assertFinanceWriteAccess = useCallback(() => {
+    if (cloudReady && !businessWritesAllowed(business.subscription)) {
+      throw new Error("Your free trial has ended. Existing financial records remain available, but changes are paused until you subscribe to a plan.");
+    }
+  }, [business.subscription, cloudReady]);
+
   const persistLocal = useCallback((nextExpenses: Expense[], nextBudget = budget) => {
     if (!cloudReady && typeof window !== "undefined") {
       try { localStorage.setItem(localKey(businessId), JSON.stringify({ expenses: nextExpenses, budget: nextBudget })); }
@@ -94,6 +101,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, [businessId, budget, cloudReady]);
 
   const addExpense = useCallback(async (input: Omit<Expense, "id">) => {
+    assertFinanceWriteAccess();
     const amount = Number(input.amount);
     const merchant = input.merchant.trim();
     if (!merchant || !Number.isFinite(amount) || amount <= 0 || !input.category || !input.date) throw new Error("Enter a merchant, category, valid date and amount greater than zero.");
@@ -101,9 +109,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (cloudReady && db) await setDoc(doc(db, "businesses", businessId, "expenses", expense.id), expense);
     else setExpenses((current) => { const next = [expense, ...current]; persistLocal(next); return next; });
     toast({ title: "Expense added", description: `${expense.merchant} has been saved.` });
-  }, [businessId, cloudReady, persistLocal, toast]);
+  }, [assertFinanceWriteAccess, businessId, cloudReady, persistLocal, toast]);
 
   const updateExpense = useCallback(async (expense: Expense) => {
+    assertFinanceWriteAccess();
     const amount = Number(expense.amount);
     const merchant = expense.merchant.trim();
     if (!expense.id || !merchant || !Number.isFinite(amount) || amount <= 0 || !expense.category || !expense.date) throw new Error("Enter a merchant, category, valid date and amount greater than zero.");
@@ -111,22 +120,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (cloudReady && db) await updateDoc(doc(db, "businesses", businessId, "expenses", expense.id), clean);
     else setExpenses((current) => { const next = current.map((item) => item.id === expense.id ? clean : item); persistLocal(next); return next; });
     toast({ title: "Expense updated", description: `${merchant} has been saved.` });
-  }, [businessId, cloudReady, persistLocal, toast]);
+  }, [assertFinanceWriteAccess, businessId, cloudReady, persistLocal, toast]);
 
   const deleteExpense = useCallback(async (id: string) => {
+    assertFinanceWriteAccess();
     if (!id) throw new Error("Expense ID is missing.");
     if (cloudReady && db) await deleteDoc(doc(db, "businesses", businessId, "expenses", id));
     else setExpenses((current) => { const next = current.filter((item) => item.id !== id); persistLocal(next); return next; });
     toast({ variant: "destructive", title: "Expense deleted", description: "The expense was removed." });
-  }, [businessId, cloudReady, persistLocal, toast]);
+  }, [assertFinanceWriteAccess, businessId, cloudReady, persistLocal, toast]);
 
   const setBudget = useCallback(async (amount: number) => {
+    assertFinanceWriteAccess();
     if (!Number.isFinite(amount) || amount < 0) throw new Error("Budget must be a valid non-negative amount.");
     if (cloudReady && db) await setDoc(doc(db, "businesses", businessId), { monthlyBudget: amount }, { merge: true });
     else { setBudgetState(amount); persistLocal(expenses, amount); }
     setBudgetState(amount);
     toast({ title: "Budget saved", description: "Your monthly budget has been saved." });
-  }, [businessId, cloudReady, expenses, persistLocal, toast]);
+  }, [assertFinanceWriteAccess, businessId, cloudReady, expenses, persistLocal, toast]);
 
   const value = useMemo(() => ({ expenses, addExpense, updateExpense, deleteExpense, budget, setBudget, openAddExpense, setOpenAddExpense, expenseToEdit, setExpenseToEdit, openScanReceipt, setOpenScanReceipt, currency, setCurrency: persistCurrency, loading }), [expenses, addExpense, updateExpense, deleteExpense, budget, setBudget, openAddExpense, expenseToEdit, openScanReceipt, currency, persistCurrency, loading]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

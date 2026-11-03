@@ -13,18 +13,18 @@ export type Expense = {
 };
 
 export type Product = {
-  id: string; businessId: string; name: string; sku: string; barcode?: string;
+  id: string; businessId: string; lastStockMovementId?: string; name: string; sku: string; barcode?: string;
   category: string; supplierId?: string; unit: Unit; costPrice: number; sellingPrice: number;
   quantity: number; reorderLevel: number; description?: string; imageUrl?: string;
   isActive: boolean; createdAt: string; updatedAt: string;
 };
 export type Supplier = { id: string; businessId: string; name: string; phone?: string; email?: string; address?: string; balance: number; createdAt: string };
 export type Customer = { id: string; businessId: string; name: string; phone?: string; email?: string; balance: number; createdAt: string };
-export type StockMovement = { id: string; businessId: string; productId: string; productName: string; type: StockMovementType; quantity: number; reference?: string; note?: string; unitCost?: number; createdAt: string; createdBy?: string };
+export type StockMovement = { id: string; businessId: string; productId: string; productName: string; type: StockMovementType; quantity: number; reference?: string; referenceType?: "sale" | "purchase"; referenceId?: string; note?: string; unitCost?: number; createdAt: string; createdBy?: string };
 export type SaleItem = { productId: string; productName: string; quantity: number; unitPrice: number; total: number; unitCost?: number };
-export type Sale = { id: string; businessId: string; invoiceNumber: string; customerId?: string; items: SaleItem[]; subtotal: number; discount: number; tax: number; total: number; paymentMethod: PaymentMethod; amountPaid: number; createdAt: string };
+export type Sale = { id: string; businessId: string; invoiceNumber: string; customerId?: string; items: SaleItem[]; subtotal: number; discount: number; tax: number; total: number; paymentMethod: PaymentMethod; amountPaid: number; createdAt: string; stockMovementIds?: string[] };
 export type PurchaseItem = { productId: string; productName: string; quantity: number; unitCost: number; total: number };
-export type Purchase = { id: string; businessId: string; invoiceNumber: string; supplierId?: string; items: PurchaseItem[]; subtotal: number; discount?: number; tax: number; total: number; paymentMethod?: PaymentMethod; amountPaid?: number; createdAt: string };
+export type Purchase = { id: string; businessId: string; invoiceNumber: string; supplierId?: string; items: PurchaseItem[]; subtotal: number; discount?: number; tax: number; total: number; paymentMethod?: PaymentMethod; amountPaid?: number; createdAt: string; stockMovementIds?: string[] };
 export type AccountPayment = { id: string; businessId: string; partyType: "customer" | "supplier"; partyId: string; amount: number; paymentMethod: PaymentMethod; reference?: string; note?: string; createdAt: string; createdBy?: string };
 
 export type BusinessSubscription = { planId: "trial" | "starter" | "growth" | "business"; status: "trialing" | "active" | "past_due" | "suspended" | "expired"; trialStartedAt?: { toDate?: () => Date } | string; trialEndsAt?: { toDate?: () => Date } | string; currentPeriodEnd?: { toDate?: () => Date } | string; updatedAt?: unknown };

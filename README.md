@@ -18,12 +18,14 @@ A Firebase-authenticated inventory and small-business operations app with a refi
 ## Security and rollout notes
 - Demo mode has been removed. The app requires Firebase Authentication.
 - Firebase web config is loaded from environment variables.
-- Firestore rules isolate business data, apply role-aware write permissions, and block operational writes after the 21-day trial unless the subscription is marked active.
+- Firestore rules isolate each `businesses/{uid}` workspace to its Firebase Auth owner. There are no business member roles or membership documents.
+- Direct Firestore CRUD is used for normal operations; Cloud Functions are not required for provisioning or CRUD.
+- Business writes remain available during the 21-day trial and while `subscription.status` is `active`. After a known trial end date passes without an active subscription, writes pause while reads and subscription-payment requests remain available.
 - A subscription is initialized on first business creation. Billing checkout is not yet connected; plan cards are informational and no payment is simulated.
 - `/platform-admin` requires the Firebase Auth custom claim `platformAdmin: true` and reads aggregate-only `platformMetrics` documents. It does not query tenant business records or personal/transaction data.
 - Platform metrics must be produced by trusted server-side jobs (Cloud Functions/Cloud Run/Admin SDK). Client writes to platform metric documents are denied.
-- The team UI grants access by Firebase UID. Production email invitations should be handled by a trusted Cloud Function using the Firebase Admin SDK.
-- Existing businesses created before subscription fields existed need a controlled migration before stricter rules are published. Review Firestore rules in a staging project first.
+- Platform-level metrics still need a trusted server-side job (optional Cloud Functions/Cloud Run/Admin SDK), but this does not gate normal business CRUD.
+- Existing business records with a missing trial date are not automatically locked. Review records whose business path, `id`, and `ownerId` do not agree before deployment.
 - Gemini receives bounded product and transaction summaries for each prompt. Review your privacy policy and user consent before production use.
 
 ## P15 repair notes

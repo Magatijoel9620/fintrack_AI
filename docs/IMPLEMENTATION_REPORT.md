@@ -1,3 +1,5 @@
+> **SUPERSEDED — 3 November 2026.** This report describes the intermediate callable-Functions implementation that made normal CRUD dependent on Blaze. It is retained for historical audit context only. The current architecture is the Spark-compatible direct-Firestore recovery documented in [FINAI_SPARK_CRUD_RECOVERY.md](FINAI_SPARK_CRUD_RECOVERY.md). Do not use the callable-only deployment instructions below.
+
 # FinAI implementation and verification report
 
 **Date:** 2 November 2026  
