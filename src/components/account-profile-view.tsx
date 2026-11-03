@@ -138,7 +138,7 @@ export default function AccountProfileView() {
           <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5 text-primary" />Sign-in email</CardTitle>
-              <CardDescription>Your email is managed by Firebase Authentication, not by your business settings.</CardDescription>
+              <CardDescription>Your email is managed by FinAI Authentication, not by your business settings.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-xl border bg-muted/35 p-3">
@@ -148,7 +148,7 @@ export default function AccountProfileView() {
               <div className="space-y-2">
                 <Label htmlFor="new-account-email">Change sign-in email</Label>
                 <Input id="new-account-email" type="email" autoComplete="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} placeholder="new-address@example.com" />
-                <p className="text-xs leading-5 text-muted-foreground">Firebase sends a verification link to the new address. Your sign-in email changes only after you confirm it. Recent sign-in may be required.</p>
+                <p className="text-xs leading-5 text-muted-foreground">FinAI sends a verification link to the new address. Your sign-in email changes only after you confirm it. Recent sign-in may be required.</p>
               </div>
               <Button variant="outline" className="w-full" onClick={() => void sendEmailChange()} disabled={emailBusy || !newEmail.trim()}>{emailBusy ? "Sending verification…" : "Send email-change verification"}</Button>
               <Button variant="ghost" size="sm" className="w-full" onClick={() => void refresh()} disabled={securityBusy}><RefreshCw className="h-4 w-4" />Refresh account details</Button>
