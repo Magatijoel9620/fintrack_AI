@@ -1,45 +1,219 @@
-# Inventory Tracker — Beta 6 Uplift
+# 💹 FinAI — Smarter Financial Decisions
 
-A Firebase-authenticated inventory and small-business operations app with a refined lavender/ink design system, business administration, accounting, Gemini-assisted inventory analysis, and a 21-day trial foundation.
+<p align="center">
+  <strong>Your AI-powered business finance co-pilot.</strong>
+  <br />
+  Manage your money, track your business, understand your numbers, and make smarter decisions — all in one place.
+</p>
 
-## Stack
-- Next.js 15 / React 18 / TypeScript
-- Firebase Authentication + Cloud Firestore
-- Gemini through Genkit server-side flows
-- Tailwind CSS, Radix UI primitives, Recharts
+<p align="center">
+  <img src="public/finai.png" alt="FinAI Logo" width="110" />
+</p>
 
-## Setup
-1. Copy `.env.example` to `.env.local`.
-2. Fill the Firebase Web App values from Firebase Console.
-3. Set `GOOGLE_GENAI_API_KEY` server-side for Gemini AI. Never expose it as a `NEXT_PUBLIC_` variable.
-4. Publish `firestore.rules` in the Firebase Console.
-5. Run `npm install`, `npm run typecheck`, `npm test`, and `npm run build`.
+<p align="center">
+  <strong>Business Finance · Inventory · Sales · Accounting · AI Insights</strong>
+</p>
 
-## Security and rollout notes
-- Demo mode has been removed. The app requires Firebase Authentication.
-- Firebase web config is loaded from environment variables.
-- Firestore rules isolate each `businesses/{uid}` workspace to its Firebase Auth owner. There are no business member roles or membership documents.
-- Direct Firestore CRUD is used for normal operations; Cloud Functions are not required for provisioning or CRUD.
-- Business writes remain available during the 21-day trial and while `subscription.status` is `active`. After a known trial end date passes without an active subscription, writes pause while reads and subscription-payment requests remain available.
-- A subscription is initialized on first business creation. Billing checkout is not yet connected; plan cards are informational and no payment is simulated.
-- `/platform-admin` requires the Firebase Auth custom claim `platformAdmin: true` and reads aggregate-only `platformMetrics` documents. It does not query tenant business records or personal/transaction data.
-- Platform metrics must be produced by trusted server-side jobs (Cloud Functions/Cloud Run/Admin SDK). Client writes to platform metric documents are denied.
-- Platform-level metrics still need a trusted server-side job (optional Cloud Functions/Cloud Run/Admin SDK), but this does not gate normal business CRUD.
-- Existing business records with a missing trial date are not automatically locked. Review records whose business path, `id`, and `ownerId` do not agree before deployment.
-- Gemini receives bounded product and transaction summaries for each prompt. Review your privacy policy and user consent before production use.
+---
 
-## P15 repair notes
-See [REPAIR_NOTES_P15.md](./REPAIR_NOTES_P15.md) for the changes made, validation boundaries, and remaining role/migration blockers. Do not deploy Firestore rules to production without staging Emulator Suite coverage.
+## ✨ Overview
 
-## Routes
-- `/` — Firebase sign-in / normal app entry
-- `/dashboard?view=business-admin` — business administration hub
-- `/dashboard?view=subscriptions` — trial and plan status
-- `/platform-admin` — protected platform operations dashboard
+**FinAI** is an intelligent business finance and operations platform designed to help entrepreneurs and small businesses take control of their finances.
 
-## Tests
-```bash
-npm test
-npm run typecheck
-npm run build
-```
+From tracking daily income and expenses to managing inventory, recording sales, generating invoices, monitoring customer balances, and understanding business performance, FinAI brings essential business operations into one connected workspace.
+
+With AI-powered insights, FinAI goes beyond recording numbers. It helps users understand financial patterns, identify opportunities, monitor business performance, and make more informed decisions.
+
+Whether you're managing a growing shop, a small enterprise, or an independent business, FinAI gives you a clearer picture of where your business stands.
+
+## 🚀 Key Features
+
+### 📊 Business Dashboard
+Get a clear overview of your business at a glance.
+
+- Income, expenses, and net profit summaries.
+- Sales and revenue performance.
+- Cash flow monitoring.
+- Inventory valuation and stock overview.
+- Outstanding customer balances.
+- Supplier and business payables.
+- Financial performance trends and visual reports.
+
+### 💰 Income & Expense Management
+Keep your business finances organized.
+
+- Record and categorize income and expenses.
+- Track business spending.
+- Monitor financial activity over time.
+- Review transaction history.
+- Understand where money comes from and where it goes.
+- Generate meaningful financial summaries.
+
+### 📦 Inventory & Product Management
+Stay on top of your stock and products.
+
+- Create and manage product records.
+- Track stock quantities and availability.
+- Monitor purchase costs and selling prices.
+- Organize products into categories.
+- Monitor low-stock items.
+- Track inventory value and stock movements.
+- Understand product profitability.
+
+### 🛒 Sales & Point of Sale
+Manage everyday business transactions with a streamlined sales workspace.
+
+- Record product sales.
+- Handle multiple products within a sale.
+- Calculate transaction totals.
+- Track paid and outstanding amounts.
+- Maintain sales history.
+- Monitor daily and overall sales performance.
+- Update inventory through sales operations.
+
+### 🧾 Invoices & Digital Receipts
+Keep customer transactions professional and traceable.
+
+- Create invoices and sales receipts.
+- Record customer and item details.
+- Track payment status.
+- Monitor paid and outstanding balances.
+- Maintain transaction history.
+- Review previous sales and payment records.
+
+### 👥 Customer & Supplier Management
+Maintain better relationships and financial records.
+
+- Organize customer information.
+- Track customer purchase history.
+- Monitor outstanding customer balances.
+- Manage supplier records.
+- Track supplier payables.
+- Maintain visibility into business obligations.
+
+### 📈 Financial Intelligence & Reporting
+Understand the financial health of your business.
+
+- Income versus expenditure analysis.
+- Profit and loss summaries.
+- Cash flow insights.
+- Sales performance reports.
+- Inventory valuation.
+- Receivables and payables monitoring.
+- Financial trends and business performance indicators.
+
+### 🤖 AI-Powered Insights
+Turn business data into useful recommendations.
+
+FinAI's AI assistant helps users:
+
+- Understand business performance.
+- Analyze financial patterns.
+- Identify unusual spending trends.
+- Discover opportunities to improve profitability.
+- Interpret sales and inventory activity.
+- Receive contextual business recommendations.
+
+Instead of simply showing you numbers, FinAI helps you understand what those numbers mean.
+
+### ⚙️ Business Workspace & Administration
+
+Manage your business environment from one place.
+
+- Business profile and branding.
+- Business currency and preferences.
+- Accounting and workspace settings.
+- Product categories and expense organization.
+- Subscription and trial information.
+- Business-level data management.
+
+## 🎯 Who Is FinAI For?
+
+FinAI is designed for people who want better visibility and control over their business finances.
+
+| Business Type | How FinAI Helps |
+|---|---|
+| 🏪 Retail shops | Sales, stock and daily financial tracking |
+| 🛍️ Small businesses | Income, expenses and profitability |
+| 📦 Traders & wholesalers | Inventory, sales and customer balances |
+| 🧑‍💼 Entrepreneurs | Business performance and financial insights |
+| 🏢 Growing enterprises | Organized financial and operational records |
+
+## 📱 Modern, Responsive Experience
+
+FinAI is designed to work across devices.
+
+- Desktop-friendly business workspace.
+- Mobile-responsive interface.
+- Installable Progressive Web App (PWA).
+- Mobile-oriented navigation.
+- Convenient access to essential business operations.
+
+Your business information stays accessible wherever you manage your business.
+
+## 🔐 Privacy & Account Security
+
+Business information deserves careful handling.
+
+FinAI is built around individual authenticated accounts and private business workspaces.
+
+- Authenticated access to business information.
+- Account-specific business data.
+- Protected business operations.
+- Controlled access to platform administration.
+- Responsible handling of data used for AI-assisted analysis.
+
+## 🧭 Getting Started
+
+1. Create your FinAI account.
+2. Set up your business profile.
+3. Configure your business preferences.
+4. Add your products and opening stock.
+5. Start recording income, expenses and sales.
+6. Manage customers, suppliers and outstanding balances.
+7. Explore financial reports and AI-powered insights.
+
+**Tip:** Start by setting up your products and recording your initial business transactions. This gives FinAI useful information to build meaningful financial summaries.
+
+## 🛠️ Development & Contribution
+
+FinAI is an evolving product under **Hempon Digital Solutions**.
+
+The project is continuously improved with a focus on:
+
+- Reliable business operations.
+- Consistent financial records.
+- Intuitive user experiences.
+- Practical AI-assisted decision-making.
+- Mobile accessibility.
+- Maintainable product development.
+
+Contributions, constructive feedback, feature suggestions and collaboration opportunities are welcome.
+
+For development setup, refer to the project's environment example and setup instructions where applicable.
+
+## 📌 Project Status
+
+**FinAI is under active development and product improvement.**
+
+Features and capabilities may evolve as the platform grows. Some commercial and subscription features may depend on the current release and rollout stage.
+
+## 🏢 About
+
+**Designed & developed by Hempon Digital Solutions**
+
+Digital products that solve real business problems.
+
+- 🌐 Website: [Hempon Group](https://hempongroup.co.ke/)
+- 💼 Portfolio: [Developer Portfolio](https://portfolio-mjs.vercel.app/)
+- 💹 Product: [FinAI](https://finai.hempongroup.co.ke/)
+
+---
+
+<p align="center">
+  <strong>FinAI</strong>
+  <br />
+  <em>Smarter Money. Brighter Future.</em>
+  <br /><br />
+  Built with purpose by Hempon Digital Solutions.
+</p>
